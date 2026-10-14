@@ -1,0 +1,23 @@
+{
+  "name": "减脂饮食",
+  "appid": "",
+  "description": "健身减脂饮食管理",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "vueVersion": "3",
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3
+  },
+  "h5": {
+    "title": "减脂饮食",
+    "router": { "mode": "hash", "base": "./" }
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": { "urlCheck": false, "es6": true, "minified": true },
+    "usingComponents": true
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "pages": [
+    {
+      "path": "pages/today/today",
+      "style": { "navigationBarTitleText": "今日食谱" }
+    },
+    {
+      "path": "pages/history/history",
+      "style": { "navigationBarTitleText": "历史食谱" }
+    },
+    {
+      "path": "pages/chef/chef",
+      "style": { "navigationBarTitleText": "AI 厨师" }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": { "navigationBarTitleText": "我的档案" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTitleText": "减脂饮食",
+    "navigationBarBackgroundColor": "#2c3e50",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f6f8"
+  },
+  "tabBar": {
+    "color": "#8a8f99",
+    "selectedColor": "#2c3e50",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/today/today", "text": "今日" },
+      { "pagePath": "pages/history/history", "text": "历史" },
+      { "pagePath": "pages/chef/chef", "text": "AI厨师" },
+      { "pagePath": "pages/profile/profile", "text": "档案" }
+    ]
+  }
+}
