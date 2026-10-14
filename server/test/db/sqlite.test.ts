@@ -169,13 +169,24 @@ describe('sqlite 建库建表', () => {
   })
 
   it('openDefaultDb 能自动建目录并开库', () => {
-    // openDefaultDb 指向 server/data/app.db，只验证能打开，不关心数据
-    const db = openDefaultDb()
-    const names = db
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-      .all()
-      .map((r) => r.name)
-    expect(names).toEqual(expect.arrayContaining(['profile', 'weight_log', 'diet_plans', 'dish_feedback']))
-    db.close()
+    // 用 DATA_DIR 指向临时目录，避免测试在 server/data/ 下生成真实 app.db
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fitness-db-default-'))
+    const prev = process.env.DATA_DIR
+    process.env.DATA_DIR = tmp
+    try {
+      const db = openDefaultDb()
+      const names = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .all()
+        .map((r) => r.name)
+      expect(names).toEqual(expect.arrayContaining(['profile', 'weight_log', 'diet_plans', 'dish_feedback']))
+      // 目录确实被自动创建，且库里文件名为 app.db
+      expect(fs.existsSync(path.join(tmp, 'app.db'))).toBe(true)
+      db.close()
+    } finally {
+      if (prev === undefined) delete process.env.DATA_DIR
+      else process.env.DATA_DIR = prev
+      fs.rmSync(tmp, { recursive: true, force: true })
+    }
   })
 })

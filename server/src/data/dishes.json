@@ -1,0 +1,2070 @@
+[
+  {
+    "id": "shou_mo_fan_zhong_fan",
+    "name": "杂粮米饭（中碗）",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shou_mo_fan", "amount": 200, "unit": "g" }
+    ],
+    "steps": "糙米、大米按 1:2 提前泡 30 分钟，加等量水电饭煲蒸熟焖 10 分钟。",
+    "tags": ["家常", "主食", "粗粮"]
+  },
+  {
+    "id": "shou_mo_fan_xiao_fan",
+    "name": "白米饭（小碗）",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shou_mo_fan", "amount": 160, "unit": "g" }
+    ],
+    "steps": "大米淘洗后加水 1:1.2 蒸熟，一碗约 160g 刚好一人食。",
+    "tags": ["家常", "主食"]
+  },
+  {
+    "id": "zai_ma_chao_mi",
+    "name": "糙米红豆饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "bai_mi", "amount": 40, "unit": "g" },
+      { "foodId": "cao_mi", "amount": 20, "unit": "g" },
+      { "foodId": "hong_dou_gan", "amount": 15, "unit": "g" }
+    ],
+    "steps": "红豆提前泡 2 小时与糙米、大米同煮，电饭煲按杂粮档蒸熟。",
+    "tags": ["粗粮", "低GI", "家常"]
+  },
+  {
+    "id": "cao_mi_fan",
+    "name": "糙米饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "cao_mi", "amount": 70, "unit": "g" }
+    ],
+    "steps": "糙米提前泡 1 小时，加水 1:1.5 蒸熟，口感比白米更嚼劲。",
+    "tags": ["粗粮", "低GI", "主食"]
+  },
+  {
+    "id": "li_ma_fan",
+    "name": "藜麦大米饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "li_ma", "amount": 50, "unit": "g" },
+      { "foodId": "bai_mi", "amount": 30, "unit": "g" }
+    ],
+    "steps": "藜麦洗净后与大米同蒸，水量比平时略少一些，焖 10 分钟再开盖。",
+    "tags": ["粗粮", "高蛋白", "西式"]
+  },
+  {
+    "id": "dan_chao_fan_shao_you",
+    "name": "少油蛋炒饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "dan_chao_fan", "amount": 220, "unit": "g" }
+    ],
+    "steps": "隔夜饭用 5g 橄榄油中小火炒散，加少许盐和葱花炒匀即可出锅。",
+    "tags": ["快手", "家常", "主食"]
+  },
+  {
+    "id": "fan_qie_chao_fan",
+    "name": "番茄炒饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shou_mo_fan", "amount": 150, "unit": "g" },
+      { "foodId": "fan_qie", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 6, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "番茄去皮切丁炒出汁，倒入米饭翻炒 3 分钟，加生抽和盐调味。",
+    "tags": ["酸甜", "家常", "快手"]
+  },
+  {
+    "id": "tu_dou_chao_fan",
+    "name": "土豆丝炒饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shou_mo_fan", "amount": 130, "unit": "g" },
+      { "foodId": "tu_dou", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 6, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "土豆切细丝冲去淀粉，锅里少油先炒土豆丝断生，再倒入米饭炒散调味。",
+    "tags": ["家常", "饱腹", "主食"]
+  },
+  {
+    "id": "shan_yao_chao_fan",
+    "name": "山药炒饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shou_mo_fan", "amount": 150, "unit": "g" },
+      { "foodId": "shan_yao", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "山药切小丁先蒸软，和米饭、少许油同炒 3 分钟，加盐和白胡椒粉调味。",
+    "tags": ["养胃", "家常", "主食"]
+  },
+  {
+    "id": "dou_fu_chao_fan",
+    "name": "豆腐丁炒饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shou_mo_fan", "amount": 140, "unit": "g" },
+      { "foodId": "bei_dou_fu", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 6, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "北豆腐切丁用少油煸香，倒入米饭炒散，加生抽和葱花调味。",
+    "tags": ["素食", "高蛋白", "家常"]
+  },
+  {
+    "id": "mian_tiao_qing_tang",
+    "name": "清汤面条",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "mian_tiao_zhu", "amount": 1, "unit": "碗" },
+      { "foodId": "you_cai", "amount": 80, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "挂面煮熟过一下凉水，盛入碗中加少许盐和青菜，汤清味淡。",
+    "tags": ["清淡", "快手", "主食"]
+  },
+  {
+    "id": "chao_mian_shao_you",
+    "name": "少油炒面",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "mian_tiao_gan", "amount": 90, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 6, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" },
+      { "foodId": "jiu_cai", "amount": 20, "unit": "g" }
+    ],
+    "steps": "挂面煮到八分熟捞出，锅中少油下面条和韭菜段翻炒 2 分钟，加生抽调色。",
+    "tags": ["家常", "快手", "主食"]
+  },
+  {
+    "id": "qiao_mai_mian_chao",
+    "name": "拌荞麦面",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "qiao_mai_mian", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" },
+      { "foodId": "cu", "amount": 8, "unit": "g" }
+    ],
+    "steps": "荞麦面煮熟过凉水，淋橄榄油和米醋拌匀，可加少许黄瓜丝。",
+    "tags": ["低GI", "清淡", "主食"]
+  },
+  {
+    "id": "yi_da_li_mian_fan_qie",
+    "name": "番茄意大利面",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "yi_da_li_mian", "amount": 80, "unit": "g" },
+      { "foodId": "fan_qie_jiang", "amount": 20, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "意面煮 8 分钟捞出，锅中少油炒番茄酱，拌入意面焖 2 分钟。",
+    "tags": ["西式", "酸甜", "主食"]
+  },
+  {
+    "id": "mi_fen_tang",
+    "name": "清汤煮米粉",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "mi_fen", "amount": 60, "unit": "g" },
+      { "foodId": "zhu_huang_dou", "amount": 30, "unit": "g" },
+      { "foodId": "xiang_cai", "amount": 10, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" }
+    ],
+    "steps": "米粉泡软后煮 3 分钟，加煮黄豆和香菜，淋少许橄榄油和生抽。",
+    "tags": ["清淡", "快手", "主食"]
+  },
+  {
+    "id": "chao_fen_si",
+    "name": "圆白菜炒粉丝",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "fen_si", "amount": 60, "unit": "g" },
+      { "foodId": "bao_cai", "amount": 60, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "粉丝泡软剪短，圆白菜切丝先用少油炒软，再下粉丝炒匀调味。",
+    "tags": ["家常", "快手", "主食"]
+  },
+  {
+    "id": "shui_zhu_fen_si",
+    "name": "煮粉丝",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "fen_si", "amount": 70, "unit": "g" },
+      { "foodId": "bao_cai", "amount": 80, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "粉丝泡软后下沸水煮 3 分钟，配焯好的圆白菜和生抽拌食。",
+    "tags": ["清淡", "低脂", "主食"]
+  },
+  {
+    "id": "lu_bo_mi_zheng",
+    "name": "白萝卜大米粥",
+    "meals": ["breakfast", "lunch"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "lu_bo", "amount": 1, "unit": "根" },
+      { "foodId": "bai_mi", "amount": 50, "unit": "g" },
+      { "foodId": "zhi_ma_you", "amount": 2, "unit": "g" }
+    ],
+    "steps": "白萝卜切丁与大米同煮 30 分钟至米粒开花，起锅点两滴香油。",
+    "tags": ["清淡", "养胃", "早餐"]
+  },
+  {
+    "id": "xiao_mi_zao",
+    "name": "小米粥",
+    "meals": ["breakfast", "lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "xiao_mi", "amount": 55, "unit": "g" },
+      { "foodId": "hong_zhao_gan", "amount": 1, "unit": "颗" }
+    ],
+    "steps": "小米淘洗后加 8 倍水大火烧开转小火 25 分钟，红枣去核同煮。",
+    "tags": ["养胃", "早餐", "家常"]
+  },
+  {
+    "id": "xiao_mi_hong_zhao_zao",
+    "name": "小米红枣粥",
+    "meals": ["breakfast", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "xiao_mi", "amount": 50, "unit": "g" },
+      { "foodId": "hong_zhao_gan", "amount": 3, "unit": "颗" }
+    ],
+    "steps": "小米与去核红枣同煮 25 分钟，粥面浮起一层米油即可。",
+    "tags": ["养胃", "补气", "早餐"]
+  },
+  {
+    "id": "yu_mai_mian_zao",
+    "name": "玉米面粥",
+    "meals": ["breakfast", "lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "yu_mai_mian", "amount": 50, "unit": "g" },
+      { "foodId": "hong_zhao_gan", "amount": 2, "unit": "颗" }
+    ],
+    "steps": "玉米面用冷水调开再倒入沸水，边倒边搅，小火煮 10 分钟至粘稠。",
+    "tags": ["粗粮", "早餐", "低GI"]
+  },
+  {
+    "id": "niu_nai_yan_mai_zao",
+    "name": "牛奶燕麦粥",
+    "meals": ["breakfast"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "ji_xiong_yan_mai", "amount": 35, "unit": "g" },
+      { "foodId": "quan_zhi_niunai", "amount": 200, "unit": "ml" }
+    ],
+    "steps": "燕麦片倒入温牛奶，微波 2 分钟或小火煮 3 分钟即可。",
+    "tags": ["快手", "早餐", "饱腹"]
+  },
+  {
+    "id": "yan_mai_zao",
+    "name": "牛奶燕麦糊",
+    "meals": ["breakfast", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "ji_xiong_yan_mai", "amount": 45, "unit": "g" },
+      { "foodId": "tuo_zhi_niunai", "amount": 200, "unit": "ml" }
+    ],
+    "steps": "脱脂牛奶加热后冲入燕麦片，焖 5 分钟至软烂即可食用。",
+    "tags": ["快手", "加餐", "饱腹"]
+  },
+  {
+    "id": "li_ma_niu_nai_zao",
+    "name": "藜麦牛奶粥",
+    "meals": ["breakfast", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "li_ma", "amount": 40, "unit": "g" },
+      { "foodId": "tuo_zhi_niunai", "amount": 200, "unit": "ml" }
+    ],
+    "steps": "藜麦煮 15 分钟至开花，倒入温牛奶再煮 2 分钟即可。",
+    "tags": ["高蛋白", "粗粮", "早餐"]
+  },
+  {
+    "id": "zheng_hong_shu",
+    "name": "蒸红薯",
+    "meals": ["breakfast", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "hong_shu", "amount": 220, "unit": "g" }
+    ],
+    "steps": "红薯洗净不去皮，上锅蒸 25 分钟至筷子能轻松插入。",
+    "tags": ["粗粮", "低脂", "饱腹"]
+  },
+  {
+    "id": "man_tou",
+    "name": "馒头",
+    "meals": ["breakfast", "lunch"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "man_tou", "amount": 1, "unit": "个" }
+    ],
+    "steps": "馒头切厚片，不放油直接蒸 8 分钟，热吃即可。",
+    "tags": ["家常", "主食", "低脂"]
+  },
+  {
+    "id": "man_tou_dou_jiang",
+    "name": "馒头配豆浆",
+    "meals": ["breakfast", "lunch"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "man_tou", "amount": 1, "unit": "个" },
+      { "foodId": "dou_jiang", "amount": 150, "unit": "ml" }
+    ],
+    "steps": "馒头蒸热，无糖豆浆加热后配着吃，蛋白碳水都有了。",
+    "tags": ["早餐", "家常", "快手"]
+  },
+  {
+    "id": "kao_man_tou_pian",
+    "name": "烤馒头片",
+    "meals": ["breakfast", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "man_tou", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 2, "unit": "g" }
+    ],
+    "steps": "馒头切 1cm 厚片，喷少许橄榄油，空气炸锅 180℃ 烤 6 分钟。",
+    "tags": ["快手", "早餐", "低糖"]
+  },
+  {
+    "id": "yu_mian_wo_tou",
+    "name": "玉米面窝头",
+    "meals": ["breakfast"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "mian_fen", "amount": 80, "unit": "g" },
+      { "foodId": "yu_mai_mian", "amount": 20, "unit": "g" },
+      { "foodId": "zhi_ma_you", "amount": 3, "unit": "g" }
+    ],
+    "steps": "面粉与玉米面按 4:1 混合，温水和面团，捏成窝头上锅蒸 20 分钟。",
+    "tags": ["粗粮", "早餐", "手工"]
+  },
+  {
+    "id": "hong_dou_sha",
+    "name": "红豆沙",
+    "meals": ["breakfast", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "chi_hong_dou", "amount": 200, "unit": "g" },
+      { "foodId": "bing_tang", "amount": 1, "unit": "块" }
+    ],
+    "steps": "熟红豆加少量水小火煮 20 分钟压成沙，加一小块冰糖调味。",
+    "tags": ["低糖", "补气", "甜口"]
+  },
+  {
+    "id": "zheng_wan_dou",
+    "name": "蒸豌豆",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "wan_dou", "amount": 200, "unit": "g" }
+    ],
+    "steps": "豌豆洗净上锅蒸 15 分钟，加少许盐和黑胡椒粉即可。",
+    "tags": ["素食", "高蛋白", "清淡"]
+  },
+  {
+    "id": "yan_shui_mao_dou",
+    "name": "盐水毛豆",
+    "meals": ["lunch", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "mao_dou", "amount": 150, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "毛豆剪去两头，水开后加盐煮 8 分钟，捞出沥干放凉。",
+    "tags": ["高蛋白", "加餐", "素食"]
+  },
+  {
+    "id": "yu_mi_suan_nai_bei",
+    "name": "玉米酸奶杯",
+    "meals": ["breakfast", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "yu_mi", "amount": 200, "unit": "g" },
+      { "foodId": "xi_lai_suan_nai", "amount": 50, "unit": "g" }
+    ],
+    "steps": "玉米粒蒸熟放凉，拌入希腊酸奶，冷藏 10 分钟风味更佳。",
+    "tags": ["加餐", "高蛋白", "低糖"]
+  },
+  {
+    "id": "quan_mai_mian_bao_niu_nai",
+    "name": "全麦面包配牛奶",
+    "meals": ["breakfast"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "quan_mai_mian_bao", "amount": 2, "unit": "片" },
+      { "foodId": "tuo_zhi_niunai", "amount": 200, "unit": "ml" }
+    ],
+    "steps": "全麦面包烤 3 分钟更香，配一杯温牛奶做早餐。",
+    "tags": ["早餐", "快手", "低糖"]
+  },
+  {
+    "id": "zheng_fen_si_bai_cai",
+    "name": "蒸粉丝白菜",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "fen_si", "amount": 60, "unit": "g" },
+      { "foodId": "bai_cai", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" }
+    ],
+    "steps": "粉丝泡软铺底，白菜切段铺在上层，淋少许橄榄油蒸 12 分钟。",
+    "tags": ["清淡", "低脂", "素食"]
+  },
+  {
+    "id": "kao_tu_dou",
+    "name": "烤土豆",
+    "meals": ["breakfast", "lunch", "snack"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "tu_dou", "amount": 300, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "土豆切块拌橄榄油和盐，空气炸锅 200℃ 烤 25 分钟。",
+    "tags": ["粗粮", "饱腹", "低GI"]
+  },
+  {
+    "id": "za_jiang_mian_shao_you",
+    "name": "少油杂酱面",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "mian_tiao_gan", "amount": 80, "unit": "g" },
+      { "foodId": "zhu_shou_rou", "amount": 50, "unit": "g" },
+      { "foodId": "dian_fen", "amount": 8, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" }
+    ],
+    "steps": "瘦肉末加淀粉和生抽腌 10 分钟，少油炒散成臊子，拌入煮好的面条。",
+    "tags": ["家常", "有嚼劲", "主食"]
+  },
+  {
+    "id": "za_jun_chao_fan",
+    "name": "菌菇炒饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shou_mo_fan", "amount": 150, "unit": "g" },
+      { "foodId": "xiang_gu", "amount": 60, "unit": "g" },
+      { "foodId": "mu_er_sui", "amount": 30, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 6, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "香菇木耳切丁与米饭同炒 4 分钟，加生抽和黑胡椒粉调味。",
+    "tags": ["素食", "鲜香", "主食"]
+  },
+  {
+    "id": "huang_dou_ya_chao_fan",
+    "name": "豆芽炒饭",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shou_mo_fan", "amount": 150, "unit": "g" },
+      { "foodId": "huang_dou_ya", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 6, "unit": "g" }
+    ],
+    "steps": "黄豆芽炒 1 分钟断生，倒入米饭大火翻炒 3 分钟，加盐调味。",
+    "tags": ["快手", "素食", "主食"]
+  },
+  {
+    "id": "fen_si_chao_dan",
+    "name": "粉丝炒蛋",
+    "meals": ["lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "fen_si", "amount": 60, "unit": "g" },
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "鸡蛋炒散盛出，粉丝炒软后倒回鸡蛋翻炒，加生抽和葱花调味。",
+    "tags": ["家常", "快手", "主食"]
+  },
+  {
+    "id": "shan_yao_zao",
+    "name": "山药粥",
+    "meals": ["breakfast", "lunch", "dinner"],
+    "role": "staple",
+    "ingredients": [
+      { "foodId": "shan_yao", "amount": 1, "unit": "根" },
+      { "foodId": "bai_mi", "amount": 45, "unit": "g" }
+    ],
+    "steps": "山药去皮切丁，与大米同煮 30 分钟至软糯。",
+    "tags": ["养胃", "清淡", "早餐"]
+  },
+  {
+    "id": "fan_qie_chao_dan",
+    "name": "番茄炒蛋",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "fan_qie", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "鸡蛋打散炒熟盛出，番茄切块炒出汁后倒回鸡蛋翻炒调味。",
+    "tags": ["家常", "酸甜", "快手"]
+  },
+  {
+    "id": "qing_jiao_chao_dan",
+    "name": "青椒炒蛋",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "qing_jiao", "amount": 100, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "青椒切丝，鸡蛋炒熟盛出，锅中少油炒青椒丝 2 分钟再合炒。",
+    "tags": ["家常", "下饭", "快手"]
+  },
+  {
+    "id": "yang_cong_chao_dan",
+    "name": "洋葱炒蛋",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "yang_cong", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "洋葱切丝用少油炒软至微甜，倒入炒好的鸡蛋翻匀加盐。",
+    "tags": ["家常", "微甜", "快手"]
+  },
+  {
+    "id": "hu_luo_bo_chao_dan",
+    "name": "胡萝卜炒蛋",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "hu_luo_bo", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "胡萝卜切薄片炒至断生，加炒蛋翻匀，撒少许盐调味。",
+    "tags": ["家常", "护眼", "快手"]
+  },
+  {
+    "id": "shao_you_jian_dan",
+    "name": "少油煎蛋",
+    "meals": ["breakfast", "lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "不粘锅刷薄油中小火，磕入鸡蛋煎到两面微定型即可，撒盐。",
+    "tags": ["快手", "早餐", "高蛋白"]
+  },
+  {
+    "id": "shui_zheng_dan_geng",
+    "name": "水蒸蛋羹",
+    "meals": ["breakfast", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "sheng_chou", "amount": 3, "unit": "g" },
+      { "foodId": "zhi_ma_you", "amount": 2, "unit": "g" }
+    ],
+    "steps": "蛋液加 1.5 倍温水打散过筛，盖保鲜膜中火蒸 10 分钟，淋香油和生抽。",
+    "tags": ["清淡", "嫩滑", "好消化"]
+  },
+  {
+    "id": "niu_nai_zheng_dan",
+    "name": "牛奶蒸蛋",
+    "meals": ["breakfast"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 1, "unit": "个" },
+      { "foodId": "quan_zhi_niunai", "amount": 100, "unit": "ml" }
+    ],
+    "steps": "蛋液与温牛奶混合过筛，中火蒸 12 分钟，表面光滑无蜂窝。",
+    "tags": ["早餐", "奶香", "嫩滑"]
+  },
+  {
+    "id": "xia_ren_zheng_dan",
+    "name": "虾仁蒸蛋",
+    "meals": ["breakfast", "lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 1, "unit": "个" },
+      { "foodId": "xia_ren", "amount": 60, "unit": "g" },
+      { "foodId": "zhi_ma_you", "amount": 2, "unit": "g" }
+    ],
+    "steps": "虾仁切丁铺在蛋液上，蒸 10 分钟出锅淋香油和少量生抽。",
+    "tags": ["高蛋白", "低脂", "嫩滑"]
+  },
+  {
+    "id": "yin_yu_zheng_dan",
+    "name": "银鱼蒸蛋",
+    "meals": ["breakfast", "lunch"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "yin_yu", "amount": 80, "unit": "g" },
+      { "foodId": "jidan", "amount": 1, "unit": "个" },
+      { "foodId": "zhi_ma_you", "amount": 2, "unit": "g" }
+    ],
+    "steps": "银鱼冲洗沥干与蛋液拌匀，上锅蒸 10 分钟，出锅点香油。",
+    "tags": ["高蛋白", "清淡", "快手"]
+  },
+  {
+    "id": "ji_xiong_san_ming_zhi",
+    "name": "鸡胸肉三明治",
+    "meals": ["breakfast", "lunch"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_xiong_rou", "amount": 80, "unit": "g" },
+      { "foodId": "quan_mai_mian_bao", "amount": 1, "unit": "片" },
+      { "foodId": "sheng_cai", "amount": 30, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 3, "unit": "g" }
+    ],
+    "steps": "鸡胸煎熟切片，铺在全麦面包上夹生菜，淋少许生抽压紧对切。",
+    "tags": ["高蛋白", "快手", "便携"]
+  },
+  {
+    "id": "niu_rou_san_ming_zhi",
+    "name": "牛肉三明治",
+    "meals": ["breakfast", "lunch"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "niu_rou_shou", "amount": 60, "unit": "g" },
+      { "foodId": "quan_mai_mian_bao", "amount": 1, "unit": "片" },
+      { "foodId": "sheng_cai", "amount": 30, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "瘦牛肉煎至七成熟切片，与生菜一起夹进烤好的全麦面包。",
+    "tags": ["高蛋白", "高铁", "便携"]
+  },
+  {
+    "id": "jin_qiang_yu_san_ming_zhi",
+    "name": "金枪鱼三明治",
+    "meals": ["breakfast", "lunch"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jin_qiang_yu_guantou", "amount": 1, "unit": "罐" },
+      { "foodId": "quan_mai_mian_bao", "amount": 1, "unit": "片" },
+      { "foodId": "sheng_cai", "amount": 30, "unit": "g" }
+    ],
+    "steps": "水浸金枪鱼沥干，与生菜一起夹进全麦面包，不用额外加油。",
+    "tags": ["高蛋白", "免开火", "便携"]
+  },
+  {
+    "id": "dou_pi_shu_cai_juan",
+    "name": "豆腐皮蔬菜卷",
+    "meals": ["breakfast", "lunch", "snack"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "dou_pi", "amount": 30, "unit": "g" },
+      { "foodId": "hu_luo_bo", "amount": 40, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 3, "unit": "g" }
+    ],
+    "steps": "豆腐皮铺开，放胡萝卜丝卷紧切段，蒸 5 分钟淋生抽。",
+    "tags": ["高蛋白", "素食", "便携"]
+  },
+  {
+    "id": "ji_xiong_sheng_cai_juan",
+    "name": "鸡胸生菜卷",
+    "meals": ["breakfast", "lunch", "snack"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_xiong_rou", "amount": 100, "unit": "g" },
+      { "foodId": "sheng_cai", "amount": 50, "unit": "g" },
+      { "foodId": "yang_cong", "amount": 20, "unit": "g" }
+    ],
+    "steps": "鸡胸煎熟撕成丝，与生菜、洋葱丝拌匀，淋少许黑胡椒即可。",
+    "tags": ["高蛋白", "低脂", "便携"]
+  },
+  {
+    "id": "cong_you_ji_xiong_rou",
+    "name": "葱油鸡胸肉",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_xiong_rou", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "鸡胸切片用少许盐腌 10 分钟，锅中橄榄油小火煎熟，淋生抽和葱花。",
+    "tags": ["高蛋白", "低脂", "家常"]
+  },
+  {
+    "id": "xi_lan_hua_chao_ji_xiong",
+    "name": "西兰花炒鸡胸",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_xiong_rou", "amount": 120, "unit": "g" },
+      { "foodId": "xi_lan_hua", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "西兰花焯水 1 分钟，鸡胸切片少油炒白后合炒，加盐和蒜末调味。",
+    "tags": ["高蛋白", "低脂", "减脂"]
+  },
+  {
+    "id": "mu_er_chao_ji_xiong",
+    "name": "木耳炒鸡胸",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_xiong_rou", "amount": 120, "unit": "g" },
+      { "foodId": "mu_er_sui", "amount": 50, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "hao_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "木耳洗净焯水，鸡胸切条少油炒香，下木耳快炒 2 分钟加蚝油。",
+    "tags": ["高蛋白", "低脂", "家常"]
+  },
+  {
+    "id": "xiang_gu_ji_ding",
+    "name": "鸡丁香菇",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_xiong_rou", "amount": 120, "unit": "g" },
+      { "foodId": "xiang_gu", "amount": 60, "unit": "g" },
+      { "foodId": "qing_jiao", "amount": 40, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "鸡胸切丁用淀粉抓匀，香菇青椒切丁，少油快炒 3 分钟加生抽。",
+    "tags": ["高蛋白", "鲜香", "下饭"]
+  },
+  {
+    "id": "cai_zhong_chao_niu_rou",
+    "name": "彩椒炒牛肉",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "niu_rou_shou", "amount": 120, "unit": "g" },
+      { "foodId": "qing_jiao", "amount": 60, "unit": "g" },
+      { "foodId": "fan_qie", "amount": 60, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "牛肉逆纹切片用生抽淀粉腌 15 分钟，大火少油快炒，加彩椒番茄合炒。",
+    "tags": ["高蛋白", "高铁", "下饭"]
+  },
+  {
+    "id": "xi_lan_hua_chao_niu_rou",
+    "name": "西兰花炒牛肉",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "niu_rou_shou", "amount": 130, "unit": "g" },
+      { "foodId": "xi_lan_hua", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "dian_fen", "amount": 5, "unit": "g" }
+    ],
+    "steps": "牛肉切片用淀粉抓匀，西兰花焯水，少油大火炒牛肉后合炒西兰花。",
+    "tags": ["高蛋白", "低脂", "减脂"]
+  },
+  {
+    "id": "hua_sheng_chao_li_ji",
+    "name": "花生炒里脊",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "zhu_li_ji", "amount": 110, "unit": "g" },
+      { "foodId": "hu_luo_bo", "amount": 40, "unit": "g" },
+      { "foodId": "hua_sheng", "amount": 10, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" }
+    ],
+    "steps": "里脊切条上浆，少油滑炒变白，下胡萝卜和花生米炒 2 分钟调味。",
+    "tags": ["高蛋白", "家常", "酥香"]
+  },
+  {
+    "id": "yu_xiang_zhu_li",
+    "name": "鱼香肉丝（少油）",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "zhu_shou_rou", "amount": 100, "unit": "g" },
+      { "foodId": "mu_er_sui", "amount": 30, "unit": "g" },
+      { "foodId": "hu_luo_bo", "amount": 30, "unit": "g" },
+      { "foodId": "dian_fen", "amount": 5, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 8, "unit": "g" },
+      { "foodId": "cu", "amount": 5, "unit": "g" }
+    ],
+    "steps": "肉丝上浆滑炒，下木耳胡萝卜丝，淋醋、生抽和少许糖收汁。",
+    "tags": ["家常", "酸甜", "下饭"]
+  },
+  {
+    "id": "dou_fu_chao_zhu_shou",
+    "name": "豆腐炒瘦肉",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "bei_dou_fu", "amount": 150, "unit": "g" },
+      { "foodId": "zhu_shou_rou", "amount": 60, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "北豆腐切块少油煎至微黄，下瘦肉片炒香，淋生抽焖 2 分钟。",
+    "tags": ["高蛋白", "下饭", "家常"]
+  },
+  {
+    "id": "dou_gan_chao_rou_si",
+    "name": "豆干炒肉丝",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "dou_gan", "amount": 80, "unit": "g" },
+      { "foodId": "zhu_shou_rou", "amount": 70, "unit": "g" },
+      { "foodId": "qing_jiao", "amount": 40, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "豆干切条，瘦肉上浆，青椒切丝，锅中少油大火合炒 3 分钟。",
+    "tags": ["高蛋白", "下饭", "家常"]
+  },
+  {
+    "id": "fu_zhu_chao_wo_sun",
+    "name": "腐竹炒莴笋",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "fu_zhu", "amount": 30, "unit": "g" },
+      { "foodId": "wo_sun", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "hao_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "腐竹泡发切段，莴笋切片，锅中少油炒腐竹后下莴笋，加蚝油炒匀。",
+    "tags": ["素食", "高蛋白", "清爽"]
+  },
+  {
+    "id": "qing_zheng_lu_yu",
+    "name": "清蒸鲈鱼",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "lu_yu", "amount": 200, "unit": "g" },
+      { "foodId": "sheng_jiang", "amount": 3, "unit": "片" },
+      { "foodId": "zhi_ma_you", "amount": 3, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 8, "unit": "g" }
+    ],
+    "steps": "鲈鱼改花刀铺姜片，水开上锅蒸 8 分钟，倒掉腥水淋生抽和香油。",
+    "tags": ["高蛋白", "低脂", "清淡"]
+  },
+  {
+    "id": "qing_zheng_ba_yu",
+    "name": "清蒸鲅鱼",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ba_yu", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "sheng_jiang", "amount": 3, "unit": "片" },
+      { "foodId": "sheng_chou", "amount": 8, "unit": "g" }
+    ],
+    "steps": "鲅鱼段铺姜片大火蒸 10 分钟，倒去盘中腥水，淋生抽和橄榄油。",
+    "tags": ["高蛋白", "低脂", "清淡"]
+  },
+  {
+    "id": "qing_zheng_xue_yu",
+    "name": "清蒸鳕鱼",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "xue_yu", "amount": 200, "unit": "g" },
+      { "foodId": "zhi_ma_you", "amount": 3, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "鳕鱼块吸干水分摆盘，水开后蒸 7 分钟，淋生抽和香油即可。",
+    "tags": ["高蛋白", "低脂", "清淡"]
+  },
+  {
+    "id": "qing_zheng_ji_yu",
+    "name": "清蒸鲫鱼",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_yu", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_jiang", "amount": 3, "unit": "片" }
+    ],
+    "steps": "鲫鱼两面划刀姜片垫底，蒸 10 分钟去腥水，淋生抽和橄榄油。",
+    "tags": ["高蛋白", "低脂", "家常"]
+  },
+  {
+    "id": "xiang_chao_san_wen_yu",
+    "name": "香煎三文鱼",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "san_wen_yu", "amount": 130, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "三文鱼两面撒盐和黑胡椒，皮面下锅小火煎 3 分钟翻面再煎 2 分钟。",
+    "tags": ["高蛋白", "好脂肪", "西式"]
+  },
+  {
+    "id": "kao_san_wen_yu",
+    "name": "烤三文鱼",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "san_wen_yu", "amount": 120, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "da_suan", "amount": 1, "unit": "瓣" }
+    ],
+    "steps": "三文鱼抹油铺蒜末，200℃ 烤 12 分钟，出炉挤少许柠檬汁。",
+    "tags": ["高蛋白", "好脂肪", "低脂"]
+  },
+  {
+    "id": "jia_zheng_duo_yu",
+    "name": "家蒸带鱼",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "duo_yu", "amount": 180, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "sheng_jiang", "amount": 3, "unit": "片" },
+      { "foodId": "cu", "amount": 5, "unit": "g" }
+    ],
+    "steps": "带鱼段蘸少许淀粉蒸 10 分钟，淋生抽、米醋和橄榄油。",
+    "tags": ["高蛋白", "家常", "低脂"]
+  },
+  {
+    "id": "yang_rou_chao_yang_cong",
+    "name": "羊肉炒洋葱",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "yang_rou_shou", "amount": 130, "unit": "g" },
+      { "foodId": "yang_cong", "amount": 100, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "瘦羊肉切片用生抽腌 10 分钟，洋葱切丝，少油快炒羊肉后合炒洋葱。",
+    "tags": ["高蛋白", "温补", "家常"]
+  },
+  {
+    "id": "huang_shan_chao_si_gua",
+    "name": "黄鳝炒丝瓜",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "huang_shan", "amount": 150, "unit": "g" },
+      { "foodId": "si_gua", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "sheng_jiang", "amount": 3, "unit": "片" }
+    ],
+    "steps": "黄鳝焯水去黏液切段，丝瓜去皮切块，少油先炒黄鳝再下丝瓜。",
+    "tags": ["高蛋白", "清爽", "家常"]
+  },
+  {
+    "id": "he_lan_dou_chao_xia_ren",
+    "name": "荷兰豆炒虾仁",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "xia_ren", "amount": 120, "unit": "g" },
+      { "foodId": "he_lan_dou", "amount": 120, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "虾仁用盐和淀粉抓匀，荷兰豆焯水 30 秒，锅中少油快炒合盘。",
+    "tags": ["高蛋白", "低脂", "快手"]
+  },
+  {
+    "id": "yu_mi_chao_xia_ren",
+    "name": "玉米炒虾仁",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "xia_ren", "amount": 100, "unit": "g" },
+      { "foodId": "yu_mi", "amount": 100, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "玉米粒煮 5 分钟，虾仁快炒变色后倒入玉米粒翻炒 2 分钟调味。",
+    "tags": ["高蛋白", "甜味", "快手"]
+  },
+  {
+    "id": "hai_xia_chao_dan",
+    "name": "虾仁滑蛋",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "xia_ren", "amount": 100, "unit": "g" },
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "虾仁炒至变色，倒入蛋液用小火推炒至半凝固，撒盐出锅。",
+    "tags": ["高蛋白", "快手", "嫩滑"]
+  },
+  {
+    "id": "yin_yu_chao_dan",
+    "name": "银鱼炒蛋",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "yin_yu", "amount": 100, "unit": "g" },
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "银鱼与蛋液拌匀，锅中少油中小火翻炒至凝固，加生抽调味。",
+    "tags": ["高蛋白", "补钙", "快手"]
+  },
+  {
+    "id": "xie_rou_chao_dan",
+    "name": "蟹肉炒蛋",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "xie_rou", "amount": 100, "unit": "g" },
+      { "foodId": "jidan", "amount": 2, "unit": "个" },
+      { "foodId": "gan_lan_you", "amount": 4, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "蟹肉轻轻打散与蛋液混合，小火慢推至半熟，撒盐和葱花。",
+    "tags": ["高蛋白", "鲜香", "嫩滑"]
+  },
+  {
+    "id": "bai_zhu_ji_wei_xia",
+    "name": "白灼基围虾",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "he_xia", "amount": 15, "unit": "只" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" },
+      { "foodId": "sheng_jiang", "amount": 3, "unit": "片" }
+    ],
+    "steps": "水中加姜片煮开，虾下锅煮 2 分钟至变红，捞出淋橄榄油和生抽。",
+    "tags": ["高蛋白", "极低脂", "快手"]
+  },
+  {
+    "id": "hai_zhe_dou_gan_ban",
+    "name": "海蜇拌豆干",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "hai_zhe", "amount": 150, "unit": "g" },
+      { "foodId": "dou_gan", "amount": 80, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" },
+      { "foodId": "cu", "amount": 3, "unit": "g" }
+    ],
+    "steps": "海蜇洗净切丝泡凉水，豆干切条，两者拌匀淋米醋和橄榄油。",
+    "tags": ["低脂", "清爽", "凉拌"]
+  },
+  {
+    "id": "jin_qiang_yu_za_shu_fan",
+    "name": "金枪鱼杂蔬饭",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "jin_qiang_yu_guantou", "amount": 1, "unit": "罐" },
+      { "foodId": "shou_mo_fan", "amount": 100, "unit": "g" },
+      { "foodId": "qing_jiao", "amount": 40, "unit": "g" },
+      { "foodId": "fan_qie", "amount": 60, "unit": "g" }
+    ],
+    "steps": "青椒番茄切丁快炒 2 分钟，倒入米饭和金枪鱼拌匀，加生抽调味。",
+    "tags": ["高蛋白", "免开火", "便携"]
+  },
+  {
+    "id": "yan_shui_zhu_dan",
+    "name": "咸水煮鸭蛋",
+    "meals": ["breakfast", "lunch", "snack"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ya_dan", "amount": 2, "unit": "个" }
+    ],
+    "steps": "鸭蛋洗净冷水下锅，水开后煮 12 分钟，捞出泡凉水剥壳。",
+    "tags": ["高蛋白", "家常", "咸香"]
+  },
+  {
+    "id": "kao_ji_chi",
+    "name": "少油烤鸡翅",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_chi", "amount": 3, "unit": "个" },
+      { "foodId": "sheng_chou", "amount": 8, "unit": "g" },
+      { "foodId": "bai_hu_jiao_fen", "amount": 1, "unit": "g" }
+    ],
+    "steps": "鸡翅划刀用生抽和白胡椒粉腌 30 分钟，200℃ 烤 20 分钟翻面。",
+    "tags": ["高蛋白", "烤箱", "解馋"]
+  },
+  {
+    "id": "niu_rou_gan",
+    "name": "牛肉干",
+    "meals": ["lunch", "snack"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "niu_rou_gan", "amount": 1, "unit": "包" }
+    ],
+    "steps": "开袋即食，配水或牛奶当加餐，一次一包控制份量。",
+    "tags": ["高蛋白", "加餐", "便携"]
+  },
+  {
+    "id": "lu_an_e_dan",
+    "name": "卤鹌鹑蛋",
+    "meals": ["breakfast", "snack"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "an_e_dan", "amount": 15, "unit": "个" },
+      { "foodId": "sheng_chou", "amount": 8, "unit": "g" }
+    ],
+    "steps": "鹌鹑蛋煮熟剥壳，放进卤汁冷藏 2 小时或小火浸 20 分钟。",
+    "tags": ["高蛋白", "加餐", "便携"]
+  },
+  {
+    "id": "kao_ji_tui_pai",
+    "name": "烤鸡腿排",
+    "meals": ["lunch", "dinner"],
+    "role": "protein",
+    "ingredients": [
+      { "foodId": "ji_tui_rou", "amount": 1, "unit": "个" },
+      { "foodId": "sheng_chou", "amount": 8, "unit": "g" },
+      { "foodId": "bai_hu_jiao_fen", "amount": 1, "unit": "g" }
+    ],
+    "steps": "鸡腿去皮用生抽和白胡椒粉腌 20 分钟，去皮后 200℃ 烤 25 分钟。",
+    "tags": ["高蛋白", "烤箱", "少油"]
+  },
+  {
+    "id": "liang_ban_huang_gua",
+    "name": "凉拌黄瓜",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "huang_gua", "amount": 1, "unit": "根" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "cu", "amount": 5, "unit": "g" }
+    ],
+    "steps": "黄瓜拍碎切段，加盐腌 5 分钟倒掉水，淋米醋和橄榄油拌匀。",
+    "tags": ["凉拌", "低卡", "爽口"]
+  },
+  {
+    "id": "liang_ban_fan_qie",
+    "name": "凉拌番茄",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "fan_qie", "amount": 2, "unit": "个" },
+      { "foodId": "gan_lan_you", "amount": 3, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "番茄切块撒少许盐静置 10 分钟出汁，淋橄榄油拌匀即可。",
+    "tags": ["凉拌", "低卡", "开胃"]
+  },
+  {
+    "id": "liang_ban_mu_er",
+    "name": "凉拌木耳",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "mu_er_sui", "amount": 100, "unit": "g" },
+      { "foodId": "zhi_ma_you", "amount": 3, "unit": "g" },
+      { "foodId": "cu", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 3, "unit": "g" }
+    ],
+    "steps": "水发木耳焯水 3 分钟过凉水，加蒜末、香醋和生抽拌匀。",
+    "tags": ["凉拌", "低卡", "补铁"]
+  },
+  {
+    "id": "liang_ban_zi_gan_lan",
+    "name": "凉拌紫甘蓝",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "zi_gan_lan", "amount": 150, "unit": "g" },
+      { "foodId": "zhi_ma_you", "amount": 3, "unit": "g" },
+      { "foodId": "cu", "amount": 5, "unit": "g" }
+    ],
+    "steps": "紫甘蓝切细丝用盐水泡 5 分钟挤干，淋香油和米醋拌匀。",
+    "tags": ["凉拌", "低卡", "爽脆"]
+  },
+  {
+    "id": "liang_ban_jin_zhen_gu",
+    "name": "凉拌金针菇",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "jin_zhen_gu", "amount": 1, "unit": "把" },
+      { "foodId": "zhi_ma_you", "amount": 3, "unit": "g" },
+      { "foodId": "cu", "amount": 5, "unit": "g" }
+    ],
+    "steps": "金针菇去根焯水 2 分钟过凉，撕成小把淋香醋和香油。",
+    "tags": ["凉拌", "低卡", "高纤维"]
+  },
+  {
+    "id": "liang_ban_yang_cong",
+    "name": "凉拌洋葱",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "yang_cong", "amount": 1, "unit": "个" },
+      { "foodId": "zhi_ma_you", "amount": 3, "unit": "g" },
+      { "foodId": "cu", "amount": 5, "unit": "g" }
+    ],
+    "steps": "洋葱切丝泡冰水 5 分钟去辣，沥干后拌香油和米醋。",
+    "tags": ["凉拌", "低卡", "解腻"]
+  },
+  {
+    "id": "qing_chao_bo_cai",
+    "name": "清炒菠菜",
+    "meals": ["breakfast", "lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "bo_cai", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "da_suan", "amount": 1, "unit": "瓣" }
+    ],
+    "steps": "菠菜焯水 30 秒去草酸，锅中少油爆香蒜末，下菠菜快炒加盐。",
+    "tags": ["清爽", "补铁", "快手"]
+  },
+  {
+    "id": "qing_chao_xi_lan_hua",
+    "name": "清炒西兰花",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "xi_lan_hua", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "西兰花切小朵焯水 1 分钟，锅中少油大火翻炒 2 分钟加盐。",
+    "tags": ["减脂", "高纤维", "快手"]
+  },
+  {
+    "id": "qing_zheng_xi_lan_hua",
+    "name": "清蒸西兰花",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "xi_lan_hua", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "西兰花焯水后上锅蒸 5 分钟，出锅淋橄榄油和少许盐。",
+    "tags": ["低脂", "清淡", "减脂"]
+  },
+  {
+    "id": "hao_you_sheng_cai",
+    "name": "蚝油生菜",
+    "meals": ["breakfast", "lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "sheng_cai", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "hao_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "生菜整片下锅少油快炒 30 秒，淋蚝油和少许盐翻匀即出锅。",
+    "tags": ["快手", "低卡", "清爽"]
+  },
+  {
+    "id": "shui_zhu_you_cai",
+    "name": "水煮青菜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "you_cai", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "沸水加油和盐，青菜下锅烫 1 分钟捞出，保持翠绿爽脆。",
+    "tags": ["低卡", "极低脂", "清淡"]
+  },
+  {
+    "id": "qing_chao_bai_cai",
+    "name": "清炒大白菜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "bai_cai", "amount": 300, "unit": "g" },
+      { "foodId": "cai_zi_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "白菜梗先下锅炒软，再下叶片翻炒 2 分钟，加盐调味出锅。",
+    "tags": ["家常", "低卡", "素食"]
+  },
+  {
+    "id": "qing_chao_bao_cai",
+    "name": "清炒圆白菜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "bao_cai", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "圆白菜手撕成片，锅中少油大火翻炒 3 分钟，加盐和蒜末。",
+    "tags": ["家常", "低卡", "快手"]
+  },
+  {
+    "id": "qing_chao_qing_jiao",
+    "name": "清炒青椒",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "qing_jiao", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "青椒去籽切丝，锅中少油大火翻炒 2 分钟，加盐和生抽调味。",
+    "tags": ["低卡", "快手", "下饭"]
+  },
+  {
+    "id": "qing_chao_he_lan_dou",
+    "name": "清炒荷兰豆",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "he_lan_dou", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "荷兰豆撕筋后焯水 30 秒，锅中少油快炒 2 分钟加盐。",
+    "tags": ["低卡", "高纤维", "清爽"]
+  },
+  {
+    "id": "qing_chao_jiu_cai",
+    "name": "清炒韭菜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "jiu_cai", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "韭菜切段洗净，大火少油快炒 90 秒，加盐立刻出锅。",
+    "tags": ["低卡", "快手", "家常"]
+  },
+  {
+    "id": "qing_chao_suan_miao",
+    "name": "清炒蒜苗",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "suan_miao", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "蒜苗斜切段，锅中少油爆香蒜片，下蒜苗炒 2 分钟加盐。",
+    "tags": ["低卡", "辛香", "家常"]
+  },
+  {
+    "id": "bao_cai_chao_mu_er",
+    "name": "圆白菜炒木耳",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "bao_cai", "amount": 150, "unit": "g" },
+      { "foodId": "mu_er_sui", "amount": 50, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "木耳焯水，圆白菜手撕，锅中少油合炒 3 分钟加生抽调味。",
+    "tags": ["高纤维", "低卡", "家常"]
+  },
+  {
+    "id": "bai_cai_chao_mu_er",
+    "name": "大白菜炒木耳",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "bai_cai", "amount": 200, "unit": "g" },
+      { "foodId": "mu_er_sui", "amount": 50, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" }
+    ],
+    "steps": "木耳泡发焯水，白菜梗先炒后合炒叶片，加盐大火翻炒 3 分钟。",
+    "tags": ["高纤维", "低卡", "素食"]
+  },
+  {
+    "id": "bai_zhuo_lu_sun",
+    "name": "白灼芦笋",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "lu_sun", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "芦笋削去根部老皮，沸水加盐和油烫 90 秒，捞出淋橄榄油。",
+    "tags": ["低卡", "清爽", "西式"]
+  },
+  {
+    "id": "qing_chao_lu_sun",
+    "name": "清炒芦笋",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "lu_sun", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "da_suan", "amount": 1, "unit": "瓣" }
+    ],
+    "steps": "芦笋切段，锅中少油爆香蒜末，下芦笋大火炒 2 分钟加盐。",
+    "tags": ["低卡", "清爽", "快手"]
+  },
+  {
+    "id": "qing_chao_xi_hu_lu",
+    "name": "清炒西葫芦",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "xi_hu_lu", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "西葫芦切片，锅中少油大火炒 3 分钟至略软，加盐和黑胡椒。",
+    "tags": ["低卡", "快手", "清爽"]
+  },
+  {
+    "id": "qing_chao_si_gua",
+    "name": "清炒丝瓜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "si_gua", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "da_suan", "amount": 1, "unit": "瓣" }
+    ],
+    "steps": "丝瓜去皮切滚刀块，锅中少油炒 2 分钟至出水，加盐调味。",
+    "tags": ["低卡", "清爽", "家常"]
+  },
+  {
+    "id": "qing_chao_qie_zi",
+    "name": "少油炒茄子",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "qie_zi", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 8, "unit": "g" },
+      { "foodId": "da_suan", "amount": 1, "unit": "瓣" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "茄子切条用盐腌 10 分钟挤水，少油中火煎软，加蒜末和生抽。",
+    "tags": ["下饭", "少油", "家常"]
+  },
+  {
+    "id": "shui_zhu_dong_gua",
+    "name": "水煮冬瓜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "dong_gua", "amount": 300, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "冬瓜去皮切薄片，沸水中煮 4 分钟，捞出淋橄榄油和少许盐。",
+    "tags": ["低卡", "利水", "清淡"]
+  },
+  {
+    "id": "qing_chao_ju_lan_cai",
+    "name": "清炒芥蓝",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "ju_lan_cai", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "da_suan", "amount": 1, "unit": "瓣" }
+    ],
+    "steps": "芥蓝切段，沸水焯 30 秒保持翠绿，锅中少油蒜末快炒加盐。",
+    "tags": ["低卡", "高纤维", "清爽"]
+  },
+  {
+    "id": "qing_chao_kong_xin_cai",
+    "name": "清炒茼蒿",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "kong_xin_cai", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "茼蒿洗净切段，锅中少油大火炒 1 分钟，加盐和蒜末出锅。",
+    "tags": ["低卡", "快手", "家常"]
+  },
+  {
+    "id": "qing_chao_wa_wa_cai",
+    "name": "清炒娃娃菜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "wa_wa_cai", "amount": 1, "unit": "颗" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "da_suan", "amount": 1, "unit": "瓣" }
+    ],
+    "steps": "娃娃菜纵向切条，锅中少油蒜末爆香，下菜翻炒 2 分钟加盐。",
+    "tags": ["低卡", "清爽", "家常"]
+  },
+  {
+    "id": "ban_wo_sun",
+    "name": "拌莴笋",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "wo_sun", "amount": 1, "unit": "根" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "cu", "amount": 5, "unit": "g" }
+    ],
+    "steps": "莴笋去皮切薄片焯水 1 分钟过凉，拌入米醋和橄榄油。",
+    "tags": ["低卡", "爽脆", "凉拌"]
+  },
+  {
+    "id": "qing_chao_xian_cai",
+    "name": "清炒苋菜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "xian_cai", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "苋菜先焯水去涩，锅中少油大火炒 1 分钟，加蒜末和盐。",
+    "tags": ["低卡", "补铁", "家常"]
+  },
+  {
+    "id": "qing_chao_xiang_gu",
+    "name": "清炒香菇",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "xiang_gu", "amount": 4, "unit": "个" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "香菇切片，锅中少油炒软出香，淋生抽和少许糖提鲜。",
+    "tags": ["鲜香", "低卡", "素食"]
+  },
+  {
+    "id": "qing_chao_huang_dou_ya",
+    "name": "清炒黄豆芽",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "huang_dou_ya", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "豆芽掐根洗净，锅中少油大火炒 2 分钟，加醋和盐爽脆出锅。",
+    "tags": ["高蛋白", "低卡", "快手"]
+  },
+  {
+    "id": "qing_chao_lv_dou_ya",
+    "name": "清炒绿豆芽",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "lv_dou_ya", "amount": 250, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "豆芽洗净，锅中少油大火炒 90 秒，加盐和米醋立刻出锅。",
+    "tags": ["低卡", "快手", "清爽"]
+  },
+  {
+    "id": "zheng_nan_gua",
+    "name": "蒸南瓜",
+    "meals": ["breakfast", "lunch", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "nan_gua", "amount": 300, "unit": "g" }
+    ],
+    "steps": "南瓜去皮切厚片，上锅蒸 15 分钟至筷子可穿透。",
+    "tags": ["低卡", "甜味", "早餐"]
+  },
+  {
+    "id": "zheng_hu_luo_bo",
+    "name": "蒸胡萝卜",
+    "meals": ["breakfast", "lunch", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "hu_luo_bo", "amount": 2, "unit": "根" }
+    ],
+    "steps": "胡萝卜洗净切段，蒸 15 分钟至软糯，可蘸少许生抽。",
+    "tags": ["低卡", "护眼", "早餐"]
+  },
+  {
+    "id": "zheng_lu_bo",
+    "name": "蒸白萝卜",
+    "meals": ["breakfast", "lunch", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "lu_bo", "amount": 1, "unit": "根" }
+    ],
+    "steps": "白萝卜切厚片，蒸 20 分钟至透明，撒少许盐和香油。",
+    "tags": ["低卡", "顺气", "清淡"]
+  },
+  {
+    "id": "zheng_qiu_kui",
+    "name": "蒸秋葵",
+    "meals": ["breakfast", "lunch", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "qiu_kui", "amount": 150, "unit": "g" },
+      { "foodId": "zhi_ma_you", "amount": 3, "unit": "g" }
+    ],
+    "steps": "秋葵整根蒸 6 分钟，切开淋少许香油和生抽。",
+    "tags": ["低卡", "高纤维", "清爽"]
+  },
+  {
+    "id": "shui_zhu_zhu_sun",
+    "name": "水煮竹笋",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "zhu_sun", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "sheng_jiang", "amount": 3, "unit": "片" }
+    ],
+    "steps": "竹笋切片，沸水加姜片煮 8 分钟，捞出淋橄榄油和少许盐。",
+    "tags": ["低卡", "高纤维", "清淡"]
+  },
+  {
+    "id": "mu_er_chao_zhu_sun",
+    "name": "木耳炒竹笋",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "mu_er_sui", "amount": 60, "unit": "g" },
+      { "foodId": "zhu_sun", "amount": 150, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "木耳与竹笋分别焯水，锅中少油大火合炒 2 分钟，加盐调味。",
+    "tags": ["高纤维", "低卡", "素食"]
+  },
+  {
+    "id": "shui_zhu_bai_cai",
+    "name": "水煮大白菜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "bai_cai", "amount": 300, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "shi_yan", "amount": 2, "unit": "g" }
+    ],
+    "steps": "白菜梗叶分开，沸水先烫梗再烫叶，捞出淋橄榄油和盐。",
+    "tags": ["低卡", "极低脂", "清淡"]
+  },
+  {
+    "id": "cu_liu_lu_bo",
+    "name": "醋溜白萝卜",
+    "meals": ["lunch", "dinner"],
+    "role": "vegetable",
+    "ingredients": [
+      { "foodId": "lu_bo", "amount": 200, "unit": "g" },
+      { "foodId": "gan_lan_you", "amount": 5, "unit": "g" },
+      { "foodId": "bai_tang", "amount": 3, "unit": "g" }
+    ],
+    "steps": "白萝卜切薄片，锅中少油炒 3 分钟，加米醋和少许糖提味。",
+    "tags": ["酸甜", "低卡", "家常"]
+  },
+  {
+    "id": "shui_zhu_dan",
+    "name": "水煮蛋",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 2, "unit": "个" }
+    ],
+    "steps": "鸡蛋冷水下锅，水开后煮 8 分钟，捞出泡冷水剥壳。",
+    "tags": ["高蛋白", "早餐", "便携"]
+  },
+  {
+    "id": "quan_shu_ji_bai_dan",
+    "name": "水煮蛋白",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "ji_bai_dan", "amount": 3, "unit": "个" }
+    ],
+    "steps": "鸡蛋煮 8 分钟后剥壳，只取蛋白，配黑胡椒和少许盐。",
+    "tags": ["极低脂", "高蛋白", "减脂"]
+  },
+  {
+    "id": "quan_zhi_niunai",
+    "name": "全脂牛奶",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "quan_zhi_niunai", "amount": 1, "unit": "杯" }
+    ],
+    "steps": "一杯 250ml 直接饮用，早餐或运动后补充蛋白。",
+    "tags": ["早餐", "补钙", "加餐"]
+  },
+  {
+    "id": "tuo_zhi_niunai",
+    "name": "脱脂牛奶",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "tuo_zhi_niunai", "amount": 1, "unit": "杯" }
+    ],
+    "steps": "一杯 250ml 温热饮用，几乎零脂肪高蛋白。",
+    "tags": ["低脂", "高蛋白", "早餐"]
+  },
+  {
+    "id": "gao_gai_niunai",
+    "name": "低脂高钙牛奶",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "gao_gai_di_zhi_nai", "amount": 1, "unit": "盒" }
+    ],
+    "steps": "一盒 250ml 直接喝，早餐搭配主食补钙又补蛋白。",
+    "tags": ["低脂", "补钙", "早餐"]
+  },
+  {
+    "id": "ji_shi_ji_xiong_rou",
+    "name": "即食鸡胸肉",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "ji_xiong_rou", "amount": 100, "unit": "g" }
+    ],
+    "steps": "真空包装鸡胸肉撕开即食，撒黑胡椒配蔬菜或全麦面包。",
+    "tags": ["高蛋白", "免开火", "便携"]
+  },
+  {
+    "id": "lu_shui_ji_xiong_rou",
+    "name": "卤水鸡胸肉",
+    "meals": ["lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "ji_xiong_rou", "amount": 100, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "鸡胸卤汁中小火浸 15 分钟，捞出切片，淋少许卤汁即可。",
+    "tags": ["高蛋白", "低脂", "咸香"]
+  },
+  {
+    "id": "wu_tang_suan_nai",
+    "name": "无糖酸奶",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "wu_tang_suan_nai", "amount": 1, "unit": "盒" }
+    ],
+    "steps": "一盒 100g 直接食用，也可拌燕麦或水果。",
+    "tags": ["无糖", "加餐", "早餐"]
+  },
+  {
+    "id": "xi_lai_suan_nai",
+    "name": "希腊酸奶（无糖）",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "xi_lai_suan_nai", "amount": 1, "unit": "盒" }
+    ],
+    "steps": "一盒 100g 蛋白质含量高，直接吃或拌坚果和麦片。",
+    "tags": ["高蛋白", "低糖", "加餐"]
+  },
+  {
+    "id": "tuo_zhi_suan_nai",
+    "name": "脱脂酸奶",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "tuo_zhi_suan_nai", "amount": 1, "unit": "盒" }
+    ],
+    "steps": "一盒 100g 低脂高蛋白，适合下午加餐。",
+    "tags": ["低脂", "高蛋白", "加餐"]
+  },
+  {
+    "id": "dan_bai_fen",
+    "name": "乳清蛋白粉",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "nai_fen", "amount": 1, "unit": "勺" }
+    ],
+    "steps": "一勺 30g 用 200ml 温水冲调，摇匀后训练后立刻喝。",
+    "tags": ["高蛋白", "健身", "加餐"]
+  },
+  {
+    "id": "dan_bai_fen_chong_niu_nai",
+    "name": "蛋白粉冲脱脂奶",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "nai_fen", "amount": 1, "unit": "勺" },
+      { "foodId": "tuo_zhi_niunai", "amount": 250, "unit": "ml" }
+    ],
+    "steps": "蛋白粉倒入温牛奶摇匀，或撒在燕麦粥里拌着吃。",
+    "tags": ["高蛋白", "快手", "健身"]
+  },
+  {
+    "id": "quan_mai_mian_bao_pian",
+    "name": "全麦面包片",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "quan_mai_mian_bao", "amount": 2, "unit": "片" }
+    ],
+    "steps": "烤 3 分钟或直接吃，配鸡蛋、牛奶或无糖酸奶。",
+    "tags": ["早餐", "低糖", "加餐"]
+  },
+  {
+    "id": "xiang_jiao",
+    "name": "香蕉",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "xiang_jiao", "amount": 1, "unit": "根" }
+    ],
+    "steps": "一根约 120g，运动前 30 分钟吃能快速补糖分。",
+    "tags": ["水果", "加餐", "快能量"]
+  },
+  {
+    "id": "ji_shi_yu_mi",
+    "name": "即食玉米",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "yu_mi", "amount": 1, "unit": "根" }
+    ],
+    "steps": "甜玉米蒸 20 分钟或买真空即食玉米，直接当早餐主食。",
+    "tags": ["粗粮", "早餐", "饱腹"]
+  },
+  {
+    "id": "xiao_fen_zheng_hong_shu",
+    "name": "小份蒸红薯",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "hong_shu", "amount": 200, "unit": "g" }
+    ],
+    "steps": "红薯洗净蒸 25 分钟，一拳大小的份量刚好当加餐。",
+    "tags": ["粗粮", "低脂", "加餐"]
+  },
+  {
+    "id": "dou_jiang",
+    "name": "无糖豆浆",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "dou_jiang", "amount": 1, "unit": "杯" }
+    ],
+    "steps": "一杯 250ml，加热后配馒头或全麦面包当早餐。",
+    "tags": ["早餐", "植物蛋白", "无糖"]
+  },
+  {
+    "id": "niu_you_guo",
+    "name": "牛油果",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "niu_you_guo", "amount": 100, "unit": "g" }
+    ],
+    "steps": "半个牛油果切片，撒黑胡椒和盐，配全麦面包吃。",
+    "tags": ["好脂肪", "早餐", "加餐"]
+  },
+  {
+    "id": "ping_guo",
+    "name": "苹果",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "pingguo", "amount": 1, "unit": "个" }
+    ],
+    "steps": "一个约 200g，带皮吃纤维更足，饭前吃能减少主食摄入。",
+    "tags": ["水果", "加餐", "高纤维"]
+  },
+  {
+    "id": "tao",
+    "name": "桃子",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "tao", "amount": 1, "unit": "个" }
+    ],
+    "steps": "一个约 200g，去皮或带皮吃都可以，当加餐水果。",
+    "tags": ["水果", "加餐", "低卡"]
+  },
+  {
+    "id": "cheng_zi",
+    "name": "橙子",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "cheng_zi", "amount": 1, "unit": "个" }
+    ],
+    "steps": "一个约 150g，连白色橘络一起吃，补维C又补纤维。",
+    "tags": ["水果", "维C", "加餐"]
+  },
+  {
+    "id": "ji_tao",
+    "name": "猕猴桃",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "ji_tao", "amount": 2, "unit": "个" }
+    ],
+    "steps": "两个约 160g，切片拌进酸奶或燕麦里都可以。",
+    "tags": ["水果", "维C", "高纤维"]
+  },
+  {
+    "id": "lan_mei",
+    "name": "蓝莓",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "lan_mei", "amount": 100, "unit": "g" }
+    ],
+    "steps": "100g 蓝莓洗净直接吃，或拌希腊酸奶做甜点。",
+    "tags": ["水果", "抗氧化", "低卡"]
+  },
+  {
+    "id": "cao_mei",
+    "name": "草莓",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "cao_mei", "amount": 15, "unit": "个" }
+    ],
+    "steps": "15 个约 225g，去蒂洗净直接吃，可代替甜点。",
+    "tags": ["水果", "低卡", "甜味"]
+  },
+  {
+    "id": "xi_gua",
+    "name": "切块西瓜",
+    "meals": ["snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "xi_gua", "amount": 300, "unit": "g" }
+    ],
+    "steps": "西瓜去皮切块，冰镇后当加餐，注意别超量。",
+    "tags": ["水果", "低卡", "解渴"]
+  },
+  {
+    "id": "huo_long_guo",
+    "name": "火龙果",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "huo_long_guo", "amount": 200, "unit": "g" }
+    ],
+    "steps": "火龙果切块，200g 约半碗，当加餐水果正好。",
+    "tags": ["水果", "高纤维", "低卡"]
+  },
+  {
+    "id": "he_tao",
+    "name": "核桃",
+    "meals": ["snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "he_tao", "amount": 2, "unit": "个" }
+    ],
+    "steps": "两个约 20g，敲碎直接吃，补脑但热量高别超量。",
+    "tags": ["坚果", "好脂肪", "加餐"]
+  },
+  {
+    "id": "xing_ren",
+    "name": "杏仁",
+    "meals": ["snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "xing_ren", "amount": 15, "unit": "颗" }
+    ],
+    "steps": "15 颗约 15g，原味杏仁当加餐，控制在一小把以内。",
+    "tags": ["坚果", "加餐", "好脂肪"]
+  },
+  {
+    "id": "kui_zi_ren",
+    "name": "葵花籽仁",
+    "meals": ["snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "kui_zi_ren", "amount": 1, "unit": "勺" }
+    ],
+    "steps": "一勺约 10g，抓一小把当加餐，解馋又补蛋白。",
+    "tags": ["坚果", "加餐", "高蛋白"]
+  },
+  {
+    "id": "nan_gua_zi_ren",
+    "name": "南瓜子仁",
+    "meals": ["snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "nan_gua_zi_ren", "amount": 1, "unit": "勺" }
+    ],
+    "steps": "一勺约 10g，含锌丰富，饭前吃能增加饱腹感。",
+    "tags": ["坚果", "加餐", "补锌"]
+  },
+  {
+    "id": "niu_nai_fen",
+    "name": "全脂奶粉",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "niu_nai_fen", "amount": 3, "unit": "勺" }
+    ],
+    "steps": "3 勺约 15g，用温水冲开一杯，适合没时间做早餐时。",
+    "tags": ["早餐", "冲泡", "补钙"]
+  },
+  {
+    "id": "tuo_zhi_nai_fen",
+    "name": "脱脂奶粉",
+    "meals": ["breakfast", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "tuo_zhi_nai_fen", "amount": 3, "unit": "勺" }
+    ],
+    "steps": "3 勺约 15g 冲 200ml 温水，低脂高蛋白的速食早餐。",
+    "tags": ["低脂", "高蛋白", "冲泡"]
+  },
+  {
+    "id": "lu_shi_dou_gan",
+    "name": "卤豆干",
+    "meals": ["breakfast", "lunch", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "dou_gan", "amount": 60, "unit": "g" },
+      { "foodId": "sheng_chou", "amount": 5, "unit": "g" }
+    ],
+    "steps": "豆干切块用生抽小火卤 10 分钟，捞出沥干当加餐。",
+    "tags": ["高蛋白", "素食", "加餐"]
+  },
+  {
+    "id": "zheng_shan_yao",
+    "name": "蒸山药",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "shan_yao", "amount": 1, "unit": "根" }
+    ],
+    "steps": "山药蒸 20 分钟，去皮直接吃或蘸少许蜂蜜。",
+    "tags": ["养胃", "饱腹", "加餐"]
+  },
+  {
+    "id": "dan_quan_shu_egg",
+    "name": "全熟水煮蛋",
+    "meals": ["breakfast", "dinner", "snack"],
+    "role": "simple",
+    "ingredients": [
+      { "foodId": "jidan", "amount": 1, "unit": "个" }
+    ],
+    "steps": "一个蛋冷水下锅煮 9 分钟，捞出泡冷水后剥壳。",
+    "tags": ["高蛋白", "早餐", "便携"]
+  }
+]
