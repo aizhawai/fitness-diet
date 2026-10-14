@@ -472,10 +472,33 @@ describe('generateDay · 单餐生成', () => {
     }
   })
 
-  it('槽位计划：正餐三槽；加餐按目标热量在「蛋白+纯食」与「纯食」间切换', () => {
-    expect(planSlots(mealTarget('lunch', 720, 60, 72, 24))).toEqual(['staple', 'protein', 'vegetable'])
-    expect(planSlots(mealTarget('breakfast', 540, 45, 55, 18))).toEqual(['staple', 'protein', 'vegetable'])
-    expect(planSlots(mealTarget('dinner', 540, 45, 55, 18))).toEqual(['staple', 'protein', 'vegetable'])
+  it('槽位计划：正餐按热量档加主食槽；加餐按目标热量在「蛋白+纯食」与「纯食」间切换', () => {
+    // 目标 ≤ 500 kcal：主食 + 蛋白 + 蔬菜
+    expect(planSlots(mealTarget('lunch', 480, 40, 48, 16))).toEqual(['staple', 'protein', 'vegetable'])
+    // 500~1000 kcal：追加一个主食槽（双主食）。早餐候选池浅、多样性降权会把
+    // 高热量候选压下去，没有这个槽就够不到 kcalMin，会被迫走 simple 兜底而误标 degraded。
+    expect(planSlots(mealTarget('lunch', 540, 45, 55, 18))).toEqual([
+      'staple',
+      'protein',
+      'vegetable',
+      'staple',
+    ])
+    expect(planSlots(mealTarget('breakfast', 720, 60, 72, 24))).toEqual([
+      'staple',
+      'protein',
+      'vegetable',
+      'staple',
+    ])
+    // > 1000 kcal：追加两个主食槽
+    expect(planSlots(mealTarget('dinner', 1400, 116, 140, 47))).toEqual([
+      'staple',
+      'protein',
+      'vegetable',
+      'staple',
+      'staple',
+    ])
+    // 额外主食必须排在最后：蛋白槽要先锁定，不能让主食把它挤掉
+    expect(planSlots(mealTarget('lunch', 600, 50, 60, 20)).indexOf('protein')).toBe(1)
     // < 200 kcal 的小加餐：只取纯食一项
     expect(planSlots(mealTarget('snack', 180, 15, 18, 6))).toEqual(['simple'])
     // ≥ 200 kcal 的加餐：蛋白 + 纯食
