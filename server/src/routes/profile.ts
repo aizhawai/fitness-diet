@@ -195,6 +195,8 @@ export async function profileRoutes(
       hasProfile: true,
       hasWeight: true,
       weightKg,
+      // 目标体重一并返回，前端今日页不必再单独 GET /api/profile
+      goalWeightKg: profile.goalWeightKg,
       bmr: round2(bmr),
       tdee: daily.tdee,
       deficitKcal: profile.deficitKcal,
