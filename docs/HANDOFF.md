@@ -199,7 +199,13 @@
 
 ### 18. 🔴 一键工具（2026-10-15 第三轮）
 
-`setup.bat` / `start.bat` + `scripts/{setup,start}.mjs`，把「装依赖 → 建 .env → 起双服务 → 开浏览器 → 干净关闭」收成一次点击。
+`setup.bat` / `start.bat` / `stop.bat` + `scripts/{setup,start,stop}.mjs`，把「装依赖 → 建 .env → 起双服务 → 开浏览器 → 干净关闭」收成一次点击。
+
+`stop.bat` 是后补的：一开始只教用户「按 Ctrl+C」，但用户会**找不到那个窗口**
+（最小化、切到别的窗口去了），于是等于没给停止的办法。
+现在 `start.mjs` 启动时把 PID 写进 `.dev-pids.json`（已 gitignore），
+`stop.mjs` 读出来按进程树收掉。**判断服务还在不在的唯一可靠依据是端口，不是 PID 文件** ——
+窗口被直接关掉时 PID 文件会变成孤儿，所以 stop.mjs 拿它当线索而非依据。
 
 写它的时候踩到的四个坑，**每个都会在别的机器上复现**：
 

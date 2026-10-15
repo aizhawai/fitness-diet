@@ -9,7 +9,7 @@
  * 跑法：双击 start.bat，或 npm start
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -34,8 +34,31 @@ const CLIENT = path.join(ROOT, 'client')
 const SERVER_PORT = Number(process.env.SERVER_PORT ?? 3000)
 const CLIENT_PORT = Number(process.env.CLIENT_PORT ?? 5173)
 
+/** PID 文件：让 stop.bat 能在不依赖启动窗口的情况下停掉整套服务 */
+const PID_FILE = path.join(ROOT, '.dev-pids.json')
+
 const children = new Set()
 let shuttingDown = false
+
+function writePidFile() {
+  try {
+    writeFileSync(
+      PID_FILE,
+      JSON.stringify({ pid: process.pid, serverPort: SERVER_PORT, clientPort: CLIENT_PORT, at: new Date().toISOString() }, null, 2),
+      'utf8',
+    )
+  } catch {
+    log.warn('写 PID 文件失败，stop.bat 将停不掉（不影响启动）')
+  }
+}
+
+function removePidFile() {
+  try {
+    rmSync(PID_FILE, { force: true })
+  } catch {
+    /* 没有就算了 */
+  }
+}
 
 // ---------- 端口冲突：问过再杀 ----------
 
@@ -122,6 +145,7 @@ async function shutdown(code = 0) {
 
   await Promise.all([...children].map((child) => killChild(child)))
   children.clear()
+  removePidFile()
 
   if (process.platform !== 'win32') {
     // 解除 detached，避免父进程退出后本进程还挂在终端里
@@ -169,6 +193,7 @@ const serverPort = await resolvePort(SERVER_PORT, '后端')
 const clientPort = await resolvePort(CLIENT_PORT, '前端')
 
 log.step('启动后端…')
+writePidFile()
 startService('后端', SERVER, ['run', 'dev'], { PORT: String(serverPort) }, 'blue')
 
 // 前端端口变了，代理目标必须跟着变 —— 这是以前最容易忘的一步
@@ -202,7 +227,11 @@ const url = `http://localhost:${clientPort}/`
 console.log()
 log.ok(`已就绪：${paint('green', url)}`)
 log.dim(`  后端 ${serverPort} · 前端 ${clientPort} · 代理 → ${proxyTarget}`)
-log.dim(`  Ctrl+C 一次全停`)
+console.log()
+log.step('怎么停')
+log.dim('  · 在这个窗口按 Ctrl+C（推荐）')
+log.dim('  · 或直接关掉这个窗口，服务会跟着停')
+log.dim('  · 窗口找不到了？双击 stop.bat')
 console.log()
 
 if (!openBrowser(url)) {

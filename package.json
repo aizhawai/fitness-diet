@@ -6,6 +6,7 @@
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "start": "node scripts/start.mjs",
+    "stop": "node scripts/stop.mjs",
     "test": "npm --prefix server test",
     "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck"
   }

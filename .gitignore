@@ -4,3 +4,5 @@ dist/
 *.db
 .DS_Store
 *.log
+# 一键启动器写的运行记录（start.bat 启动时生成，stop.bat 消费）
+.dev-pids.json
