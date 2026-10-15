@@ -15,6 +15,7 @@
 
 import type { DatabaseSync } from 'node:sqlite'
 import type { DayPlan, PlannedMeal } from '../../core/planner.js'
+import type { StageSuggestion } from '../../core/stageRule.js'
 import type { MacroTarget, MealType } from '../../types.js'
 
 /** 计划来源：算法生成 / AI 生成 / 手工编辑 */
@@ -38,6 +39,15 @@ export interface StoredPlan {
    * 可选字段，老数据 / 纯算法生成的计划都没有，缺省即为「全是算法出的」。
    */
   aiMeals?: MealType[]
+  /**
+   * 饮食结构阶段建议（Task 21）。
+   *
+   * **不进库** —— 它由「体重史 + 目标体重 + 当前结构」实时派生，体重一变就变，
+   * 存进 meals_json 只会留下过期快照。生成/换菜时现算现挂，GET 走的也是现算。
+   *
+   * 只是提醒，不强制：前端展示成非阻断提示条，要不要切换由用户自己决定。
+   */
+  suggestion?: StageSuggestion
 }
 
 const round1 = (x: number): number => Math.round(x * 10) / 10

@@ -7,7 +7,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
-import { PlanError, generatePlan, rerollDish } from '../services/planService.js'
+import { PlanError, attachStageSuggestion, generatePlan, rerollDish } from '../services/planService.js'
 import { getPlan, listPlans } from '../db/repos/planRepo.js'
 import { listFeedback, setFeedback } from '../db/repos/feedbackRepo.js'
 import { getDishIndex } from '../data/load.js'
@@ -184,6 +184,7 @@ export async function planRoutes(app: FastifyInstance, opts: PlanRoutesOptions):
         code: 'PLAN_NOT_FOUND',
       })
     }
-    return { plan }
+    // suggestion 不落库，读库后现算挂上（体重一变就该变）
+    return { plan: attachStageSuggestion(db, plan) }
   })
 }

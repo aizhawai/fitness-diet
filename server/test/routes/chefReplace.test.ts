@@ -476,6 +476,17 @@ function mealsJsonOf(db: DatabaseSync): string {
   return row.meals_json
 }
 
+/**
+ * 剥掉 suggestion 后比对。
+ * suggestion 由体重史实时派生、故意不落库，所以「库里读出来的」永远没有这个字段，
+ * 而「服务层刚返回的」有。比对计划本身时必须剔除，否则会把「没落库」误判成「计划变了」。
+ */
+function stripSuggestion<T extends { suggestion?: unknown }>(plan: T | null): Omit<T, 'suggestion'> | null {
+  if (plan === null) return null
+  const { suggestion: _ignored, ...rest } = plan
+  return rest
+}
+
 describe('replaceDishInPlanWithAi 失败不落库', () => {
   it('配料解析不了 → UNRESOLVABLE_INGREDIENTS，且当天计划一字未改', async () => {
     const { db, plan, mealsJson } = await setupPlanWithDish()
@@ -495,7 +506,9 @@ describe('replaceDishInPlanWithAi 失败不落库', () => {
 
     // 回查数据库：落库的 meals_json 与调用前逐字节相同
     expect(mealsJsonOf(db)).toBe(mealsJson)
-    expect(getPlan(db, DATE)).toEqual(plan)
+    // suggestion 是由体重史现算的派生值、故意不落库，比对时要剔除；
+    // 这里要验的是「计划本身一字未改」。
+    expect(stripSuggestion(getPlan(db, DATE))).toEqual(stripSuggestion(plan))
   })
 
   it('单位无法换算 → 同样归为 UNRESOLVABLE_INGREDIENTS，计划不变', async () => {
@@ -567,7 +580,8 @@ describe('replaceDishInPlanWithAi 失败不落库', () => {
     // 全天 total 等于各餐之和
     const sum = result.plan.meals.reduce((a, m) => a + m.nutrition.kcal, 0)
     expect(result.plan.total.kcal).toBe(Math.round(sum))
-    expect(getPlan(db, DATE)).toEqual(result.plan)
+    // suggestion 不落库，比对时剔除
+    expect(stripSuggestion(getPlan(db, DATE))).toEqual(stripSuggestion(result.plan))
   })
 })
 

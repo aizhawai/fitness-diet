@@ -16,9 +16,10 @@ import { splitMeals } from '../core/mealSplit.js'
 import { calcNutrition } from '../core/nutrition.js'
 import { filterCandidates, generateDay, isMealInRange, scoreDish } from '../core/planner.js'
 import type { DayPlan, PlannedDish, PlannedMeal } from '../core/planner.js'
+import { suggestStage } from '../core/stageRule.js'
 import { getFoodIndex, loadAllDishes } from '../data/load.js'
 import { effectiveRatio, getProfile } from '../db/repos/profileRepo.js'
-import { latestWeight } from '../db/repos/weightRepo.js'
+import { latestWeight, listWeights } from '../db/repos/weightRepo.js'
 import { getPlan, listPlansSince, savePlan } from '../db/repos/planRepo.js'
 import type { PlanSource, StoredPlan } from '../db/repos/planRepo.js'
 import { listFeedback } from '../db/repos/feedbackRepo.js'
@@ -229,7 +230,8 @@ export async function generatePlan(
 
   if (!force) {
     const existing = getPlan(conn, date)
-    if (existing !== null) return existing
+    // suggestion 不落库，命中缓存的路径同样要现算挂上，否则同一个接口两次返回结构不一致
+    if (existing !== null) return withSuggestion(conn, existing)
   }
 
   const meals = resolveMealTargets(conn, hasTraining, localDate())
@@ -244,7 +246,33 @@ export async function generatePlan(
 
   const fallback = await applyAiFallback(dayPlan, meals, opts)
   dayPlan = fallback.dayPlan
-  return savePlan(conn, date, dayPlan, source, fallback.aiMeals)
+  return withSuggestion(conn, savePlan(conn, date, dayPlan, source, fallback.aiMeals))
+}
+
+/**
+ * 挂上饮食结构阶段建议（Task 21）。
+ *
+ * 只提醒不强制 —— 前端渲染成非阻断提示条，改不改由用户自己点。
+ * 无档案时没有「当前结构」可言，直接不挂这个字段。
+ */
+function withSuggestion(db: DatabaseSync, plan: StoredPlan): StoredPlan {
+  return attachStageSuggestion(db, plan)
+}
+
+/**
+ * 挂上阶段建议的对外入口：路由层的 GET /api/plan/:date 读库后直接用它补上，
+ * 因为 suggestion 不落库（体重一变就变，存进去只会留下过期快照）。
+ */
+export function attachStageSuggestion(db: DatabaseSync, plan: StoredPlan): StoredPlan {
+  const profile = getProfile(db)
+  if (profile === null) return plan
+
+  const suggestion = suggestStage({
+    weightHistory: listWeights(db).map((r) => ({ date: r.date, weightKg: r.weightKg })),
+    goalWeightKg: profile.goalWeightKg,
+    currentStructure: profile.dietStructure,
+  })
+  return { ...plan, suggestion }
 }
 
 /**
@@ -519,7 +547,7 @@ export function rerollDish(
     total: sumMacros(meals.map((m) => m.nutrition)),
     degraded: meals.some((m) => m.degraded),
   }
-  const plan = savePlan(db, date, dayPlan, current.source, current.aiMeals)
+  const plan = withSuggestion(db, savePlan(db, date, dayPlan, current.source, current.aiMeals))
 
   const newDish = plan.meals[mealIndex]?.dishes[dishIndex]?.dish
   return {
@@ -616,6 +644,6 @@ export async function replaceDishInPlanWithAi(
     total: sumMacros(meals.map((m) => m.nutrition)),
     degraded: meals.some((m) => m.degraded),
   }
-  const plan = savePlan(db, date, dayPlan, current.source, current.aiMeals)
+  const plan = withSuggestion(db, savePlan(db, date, dayPlan, current.source, current.aiMeals))
   return { result, plan }
 }
