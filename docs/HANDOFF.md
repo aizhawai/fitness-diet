@@ -108,10 +108,65 @@
 
 > ⚠️ 两个特性：不能绑定 `undefined`（可空字段必须显式传 `null`）；返回行是 null-prototype 对象（测试用 `toEqual` 不能用 `toStrictEqual`）。
 
-### 3. uni-app 的 Vue 版本必须钉死
+### 3. 🔴 uni-app 与 Vue 版本：冲突方向搞反了就会理解错
 
-`@dcloudio/*` 全部**精确**依赖 `3.4.21`。`vue` 若写成 `^3.4.21` 会解析到 3.5.44，直接版本撕裂。
-**已在 `client/package.json` 用 `overrides` 把整条 @vue/* 树钉在 3.4.21。**
+**先说结论：我们的版本就是官方最新的那个。** `@dcloudio/*` 的 dist-tag：
+
+| tag | 版本 | 含义 |
+|---|---|---|
+| `latest` | `2.0.2-5020620260917001` | Vue **2** 线的最新版 |
+| `vue3` | `3.0.0-alpha-5030120260930001` | Vue **3** 线的最新版 ← **我们装的就是这个** |
+
+「alpha」只是 DCloud 对 Vue3 线的 tag 命名，**不是开发预览版**。另外 `@dcloudio/vite-plugin-uni`
+官方要求的正是 `vite@5.2.8`，与本地一致。
+
+**真正把版本钉死的是 uni-app 自己**（不是我们）—— `@dcloudio/uni-cli-shared` 的 `dependencies` 里：
+
+```json
+"@vue/shared": "3.4.21",
+"@vue/compiler-dom": "3.4.21",
+"@vue/compiler-sfc": "3.4.21",
+"@vue/compiler-ssr": "3.4.21",
+"@vue/compiler-core": "3.4.21",
+"@vue/server-renderer": "3.4.21"
+```
+
+⚠️ 查的时候别只看 `@dcloudio/uni-app` —— **它的 dependencies / peerDependencies 里根本没有 vue**，
+钉子埋在 `uni-cli-shared` 里。只看 uni-app 会得出「官方没锁版本」的错误结论。
+
+**所以 `overrides` 不是权宜之计，而是对齐官方的必要手段**：周边生态（`@vitejs/plugin-vue@5`、
+`pinia@2.2+`、`rollup`…）都迁到 Vue 3.5 了，npm 会为了满足它们的 caret 范围**再装一份 3.5.x**，
+树里出现两个 Vue → 白屏。`overrides` 是唯一能压住这件事的机制。
+
+#### 三个依赖各自的情况
+
+| 依赖 | 对 vue 的要求 | 与官方 3.4.21 | 能否修 |
+|---|---|---|---|
+| `@dcloudio/*`（官方自己） | `= 3.4.21` 写死 | ✅ 基准 | 官方标准，不能升 |
+| `pinia` | 2.1.7 → `^2.6.14 \|\| ^3.3.0` | ✅ | **已降到 2.1.7** |
+| `pinia` 2.2.8 / 2.3.1 | `… \|\| ^3.5.11` | ❌ | 运行时依赖，**必须降** |
+| `@vitejs/plugin-vue@5.2.4` | `^3.5.13` | ❌ | ❌ **修不了**，由 `@dcloudio/vite-plugin-uni` 拉进来 |
+
+> ⚠️ `npm ls vue` 里会看到 `@vitejs/plugin-vue` 那条 `invalid`，**这是常态、不是坏了**：
+> 那是 uni-app 上游的版本节奏没跟上，工具本身只吃 hoist 后的 3.4.21，工作正常。
+> 真正要盯的是 pinia 那条 —— 它是**运行时**依赖，peer 不匹配就可能调到 Vue 3.5 才有的 API。
+
+#### 扫版本时有两个「假警报」，别自己吓自己
+
+递归扫 `node_modules` 会看到好几份非 3.4.21，**都不是问题**：
+
+| 看着可疑的 | 真相 |
+|---|---|
+| `@vue/compiler-core@3.5.44`、`compiler-dom@3.5.44` | 在 `@vue/language-core` 里面，那是 **`vue-tsc` 的依赖，只做类型检查**，不产出运行时代码 |
+| `lib/dom2`、`lib/vapor` 下的 3.5.14 / 3.6.0-rc.9 / 3.6.0-alpha.2 | **官方包自带的 vendored 编译产物**（旧渲染器与 vapor 实验模式），不是 npm 解析出来的 |
+
+判断标准只有一个：**`npm ls vue` 里运行时/构建链那条链是不是干净的 `deduped`。**
+（⚠️ 别为了消灭上面那两条 `invalid` 就往 `overrides` 里加 `compiler-core` —— 那样会把 vue-tsc 弄坏，
+`@vue/language-core@2.x` 需要 3.5 的编译 API。）
+
+> **纪律：改任何依赖版本 + `npm install` 之后，必须重启 dev server**
+> （Vite 默认不 watch `node_modules`，旧进程会继续从内存缓存发旧版 —— 这与版本对不对无关）。
+> `predev:h5` 已经在做这一步。
 
 ### 4. 沙箱权限边界
 
