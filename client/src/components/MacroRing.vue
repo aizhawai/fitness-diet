@@ -1,5 +1,5 @@
 <template>
-  <view class="ring">
+  <view class="ring" :style="ringStyle">
     <canvas
       class="ring__canvas"
       :canvas-id="canvasId"
@@ -55,6 +55,15 @@ const instance = getCurrentInstance()
 const canvasId = `macro-ring-${Math.random().toString(36).slice(2, 10)}`
 
 const canvasStyle = computed(() => {
+  const s = props.size
+  return `width:${s}px;height:${s}px;`
+})
+
+/**
+ * 容器显式占满 size：canvas 是 absolute，不参与布局，
+ * 只靠里面的文字撑高会让容器比圆环矮，圆环下半截就压到下面的说明文字上。
+ */
+const ringStyle = computed(() => {
   const s = props.size
   return `width:${s}px;height:${s}px;`
 })

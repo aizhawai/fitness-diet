@@ -89,6 +89,16 @@ export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
   moderate: '中活动',
 }
 
+/**
+ * TDEE 的活动系数，与 server/src/types.ts 的 ACTIVITY_FACTORS 保持一致。
+ * 前端做「目标热量随体重变化」的线性外推时需要它（后端没有暴露按任意体重算目标的接口）。
+ */
+export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+}
+
 export const MEAL_MODE_LABELS: Record<MealMode, string> = {
   normal: '正常三餐',
   fast168: '16-8 两餐',

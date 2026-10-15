@@ -192,6 +192,15 @@
       </button>
     </view>
 
+    <!-- ============ 体重趋势图 ============ -->
+    <view class="card">
+      <WeightChart
+        :profile="store.profile"
+        :anchor="chartAnchor"
+        :goal-weight-kg="store.profile?.goalWeightKg ?? null"
+      />
+    </view>
+
     <!-- ============ 历史体重 ============ -->
     <view class="card">
       <text class="card__title">历史体重</text>
@@ -218,8 +227,9 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import WeightChart from '../../components/WeightChart.vue'
 import {
   ACTIVITY_OPTIONS,
   DEFICIT_RANGE,
@@ -236,6 +246,16 @@ import { ApiError, toMessage } from '../../api/request'
 import { useProfileStore } from '../../stores/profile'
 
 const store = useProfileStore()
+
+/**
+ * 趋势图右侧「目标热量」曲线的线性外推锚点：
+ * 取后端 /api/profile/target 算出的「当前体重 → BMR」，缺档案或缺体重时为 null。
+ */
+const chartAnchor = computed(() => {
+  const target = store.target
+  if (!target || !target.hasProfile || !target.hasWeight) return null
+  return { weightKg: target.weightKg, bmr: target.bmr }
+})
 
 // ---------- 本地日期工具 ----------
 function pad2(n: number): string {
