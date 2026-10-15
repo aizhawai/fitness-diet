@@ -138,16 +138,43 @@
         </view>
       </view>
 
-      <MealCard
-        v-for="(meal, mealIndex) in plan?.meals ?? []"
-        :key="`${meal.type}-${mealIndex}`"
-        :meal="meal"
-        :meal-index="mealIndex"
-        :food-names="foodNames"
-        :is-ai="aiMealTypes.includes(meal.type)"
-        :rerolling="!!rerollingKey"
-        @reroll="onReroll"
-      />
+      <block v-for="(meal, mealIndex) in plan?.meals ?? []" :key="`${meal.type}-${mealIndex}`">
+        <MealCard
+          :meal="meal"
+          :meal-index="mealIndex"
+          :food-names="foodNames"
+          :is-ai="aiMealTypes.includes(meal.type)"
+          :rerolling="!!rerollingKey"
+          @reroll="onReroll"
+        />
+
+        <!-- 每道菜的「AI 换一道」与偏好反馈入口（MealCard 内部不碰接口，入口放在这里） -->
+        <view v-if="meal.dishes.length > 0" class="dish-ops">
+          <view class="dish-ops__head">
+            <text class="dish-ops__title">菜品操作</text>
+            <text class="dish-ops__hint">点「⋯」或长按：AI 换一道 / 喜欢 · 一般 · 不吃</text>
+          </view>
+          <view
+            v-for="(item, dishIndex) in meal.dishes"
+            :key="item.dish.id"
+            class="dish-op"
+            @longpress="openDishMenu(mealIndex, dishIndex)"
+          >
+            <text class="dish-op__name">{{ item.dish.name }}</text>
+            <text
+              v-if="feedbackScore(item.dish.id) !== null"
+              class="dish-op__badge"
+              :class="feedbackBadgeClass(item.dish.id)"
+            >{{ feedbackLabel(item.dish.id) }}</text>
+            <text v-if="isAiReplacing(mealIndex, dishIndex)" class="dish-op__busy">AI 换菜中…</text>
+            <text
+              class="dish-op__btn"
+              :class="{ 'dish-op__btn--busy': isAiReplacing(mealIndex, dishIndex) }"
+              @click="openDishMenu(mealIndex, dishIndex)"
+            >⋯</text>
+          </view>
+        </view>
+      </block>
 
       <view v-if="plan && plan.meals.length === 0" class="card">
         <text class="card__hint">这份食谱没有餐次数据，可以点下方「重新生成」再来一次。</text>
@@ -165,11 +192,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
 import MacroRing from '../../components/MacroRing.vue'
 import MealCard from '../../components/MealCard.vue'
 import { PLAN_SOURCE_LABELS } from '../../api/plan'
+import { chefErrorNotice, replaceDishWithAi } from '../../api/chef'
+import {
+  FEEDBACK_LABELS,
+  fetchFeedback,
+  postFeedback,
+  toFeedbackMap,
+  type FeedbackScore,
+} from '../../api/feedback'
 import { toMessage } from '../../api/request'
 import { usePlanStore } from '../../stores/plan'
 import { useProfileStore } from '../../stores/profile'
@@ -300,12 +335,152 @@ onShow(() => {
   if (!store.profile) void store.loadProfile()
   // 今天已有的食谱：404 视为「还没生成」，静默留空
   void planStore.loadPlan(todayStr)
+  // 菜品偏好标记：进页面就拉一次，好让菜旁边的角标显示当前状态
+  void loadFeedback()
 })
 
 onPullDownRefresh(async () => {
-  await Promise.all([store.loadTarget(), planStore.loadPlan(todayStr)])
+  await Promise.all([store.loadTarget(), planStore.loadPlan(todayStr), loadFeedback()])
   uni.stopPullDownRefresh()
 })
+
+// ============================================================
+// AI 换一道 + 菜品偏好反馈
+//
+// 这两块都挂在 MealCard 之下的一条「菜品操作」条上（MealCard 只管展示、
+// 不碰 api 层），点「⋯」或长按弹操作表。失败一律按后端错误码给不同文案，
+// 且**保留原菜 / 原状态** —— 后端失败时本来就不落库。
+// ============================================================
+
+/** dishId → 评分 */
+const feedbackMap = ref<Record<string, FeedbackScore>>({})
+/** 正在 AI 换菜的槽位 `mealIndex-dishIndex` */
+const aiReplacingKey = ref('')
+
+async function loadFeedback(): Promise<void> {
+  try {
+    feedbackMap.value = toFeedbackMap(await fetchFeedback())
+  } catch {
+    // 拉不到反馈不该挡住整页：没有角标而已，用户第一次点会重新写
+  }
+}
+
+function feedbackScore(dishId: string): FeedbackScore | null {
+  const score = feedbackMap.value[dishId]
+  return score === undefined ? null : score
+}
+
+function feedbackLabel(dishId: string): string {
+  const score = feedbackScore(dishId)
+  return score === null ? '' : FEEDBACK_LABELS[score]
+}
+
+function feedbackBadgeClass(dishId: string): string {
+  const score = feedbackScore(dishId)
+  if (score === null) return ''
+  if (score === 1) return 'dish-op__badge--like'
+  if (score === -1) return 'dish-op__badge--dislike'
+  return 'dish-op__badge--normal'
+}
+
+function isAiReplacing(mealIndex: number, dishIndex: number): boolean {
+  return aiReplacingKey.value === `${mealIndex}-${dishIndex}`
+}
+
+/** 操作表：AI 换一道 / 喜欢 / 一般 / 不吃 */
+function openDishMenu(mealIndex: number, dishIndex: number): void {
+  if (isAiReplacing(mealIndex, dishIndex)) return
+  const dish = plan.value?.meals[mealIndex]?.dishes[dishIndex]
+  if (dish === undefined) return
+
+  uni.showActionSheet({
+    itemList: ['AI 换一道', '喜欢', '一般', '不吃'],
+    success: (res) => {
+      if (res.tapIndex === 0) {
+        onAiReplace(mealIndex, dishIndex)
+        return
+      }
+      const scores: FeedbackScore[] = [1, 0, -1]
+      const score = scores[res.tapIndex - 1]
+      if (score === undefined) return
+      onFeedback(dish.dish.id, dish.dish.name, score)
+    },
+    fail: () => {
+      // 用户点了取消，什么都不用做
+    },
+  })
+}
+
+/**
+ * AI 换一道：成功后按返回的**整份 plan** 覆盖本地计划（后端已落库）。
+ *
+ * 失败时**什么都不改**（后端失败路径不写库，原菜原样保留），
+ * 只把 chefErrorNotice 的降级文案弹出来；NOT_CONFIGURED 会明确告诉用户
+ * 「AI 不可用，可继续用算法换菜」。
+ */
+function onAiReplace(mealIndex: number, dishIndex: number): void {
+  const key = `${mealIndex}-${dishIndex}`
+  aiReplacingKey.value = key
+  uni.showLoading({ title: 'AI 正在换菜…', mask: true })
+
+  replaceDishWithAi({ date: todayStr, mealIndex, dishIndex })
+    .then((res) => {
+      planStore.plan = res.plan
+      // 换进来的新菜可能带进没见过的食材
+      void planStore.loadFoodNames()
+      if (!res.result.inRange) {
+        uni.showToast({ title: `换成了「${res.result.dish.dish.name}」，这餐暂时没达标`, icon: 'none' })
+        return
+      }
+      uni.showToast({ title: `换成了「${res.result.dish.dish.name}」`, icon: 'none' })
+    })
+    .catch((err: unknown) => {
+      const notice = chefErrorNotice(err, {
+        foodNames: planStore.foodNames,
+        replaceInPlan: true,
+      })
+      uni.showModal({
+        title: notice.title,
+        content: notice.desc,
+        showCancel: false,
+        confirmText: notice.retryable ? '知道了' : '好',
+      })
+    })
+    .finally(() => {
+      uni.hideLoading()
+      if (aiReplacingKey.value === key) aiReplacingKey.value = ''
+    })
+}
+
+/**
+ * 记一条偏好反馈。成功后立即打角标，让用户看到「反馈已生效」。
+ * 标「不吃」额外说明：之后的生成不会再出现这道菜。
+ */
+function onFeedback(dishId: string, dishName: string, score: FeedbackScore): void {
+  postFeedback(dishId, score)
+    .then(() => {
+      feedbackMap.value = { ...feedbackMap.value, [dishId]: score }
+      if (score === -1) {
+        uni.showModal({
+          title: `已记下：不吃「${dishName}」`,
+          content: '之后的生成不会再出现这道菜。',
+          showCancel: false,
+          confirmText: '好',
+        })
+        return
+      }
+      uni.showToast({ title: `已记下：${FEEDBACK_LABELS[score]}`, icon: 'none' })
+    })
+    .catch((err: unknown) => {
+      const notice = chefErrorNotice(err, { replaceInPlan: true })
+      uni.showModal({
+        title: notice.title,
+        content: notice.desc,
+        showCancel: false,
+        confirmText: '好',
+      })
+    })
+}
 </script>
 
 <style scoped lang="scss">
@@ -653,6 +828,86 @@ onPullDownRefresh(async () => {
   font-size: 22rpx;
   color: #9aa0aa;
   text-align: center;
+}
+
+/* ---------- 菜品操作条（AI 换一道 / 偏好反馈） ---------- */
+.dish-ops {
+  background-color: #ffffff;
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  margin-top: -12rpx;
+  margin-bottom: 24rpx;
+}
+
+.dish-ops__head {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  margin-bottom: 8rpx;
+}
+
+.dish-ops__title {
+  font-size: 24rpx;
+  color: #9aa0aa;
+  margin-right: 16rpx;
+}
+
+.dish-ops__hint {
+  font-size: 20rpx;
+  color: #b8bdc6;
+  flex: 1;
+}
+
+.dish-op {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 12rpx 0;
+  border-top: 2rpx solid #f0f2f5;
+}
+
+.dish-op__name {
+  font-size: 24rpx;
+  color: #4b5563;
+  flex: 1;
+}
+
+.dish-op__badge {
+  font-size: 20rpx;
+  border-radius: 8rpx;
+  padding: 2rpx 12rpx;
+  margin-right: 12rpx;
+  color: #ffffff;
+  background-color: #9aa0aa;
+}
+
+.dish-op__badge--like {
+  background-color: #2fb98a;
+}
+
+.dish-op__badge--normal {
+  background-color: #9aa0aa;
+}
+
+.dish-op__badge--dislike {
+  background-color: #e0664c;
+}
+
+.dish-op__busy {
+  font-size: 20rpx;
+  color: #7b61ff;
+  margin-right: 12rpx;
+}
+
+.dish-op__btn {
+  font-size: 32rpx;
+  color: #4c8bf5;
+  padding: 0 12rpx;
+  line-height: 1.2;
+}
+
+.dish-op__btn--busy {
+  color: #b8bdc6;
 }
 
 /* ---------- 骨架屏 ---------- */
