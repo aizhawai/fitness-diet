@@ -1,6 +1,6 @@
 # 子代理通用约定（写代码前必读）
 
-项目根目录：`C:\Users\Administrator\Desktop\D盘\fitness`
+项目根目录：仓库根（本文档所在目录的上一级），下含 `server/` 与 `client/`
 后端根目录：`server/`
 
 ## 技术环境（已固定，不要改）
@@ -23,7 +23,7 @@
 ## 命令
 
 ```bash
-cd "C:/Users/Administrator/Desktop/D盘/fitness/server"
+cd server
 npx vitest run                 # 全量测试
 npx vitest run test/core/bmr   # 只跑某文件
 npx tsc --noEmit               # 类型检查，必须 0 error

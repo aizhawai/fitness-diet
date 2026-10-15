@@ -27,7 +27,7 @@
 **Files:**
 - Create: `fitness-diet/server/package.json`、`fitness-diet/server/tsconfig.json`、`fitness-diet/server/src/index.ts`（临时空壳）、`fitness-diet/server/.env.example`、`fitness-diet/server/.gitignore`、`fitness-diet/.gitignore`（根级）
 
-- [ ] **Step 1.1** 在 `C:\Users\Administrator\Desktop\D盘\杂活\fitness-diet` 下初始化 git 仓库（`git init`）
+- [ ] **Step 1.1** 在 `fitness-diet/` 目录下初始化 git 仓库（`git init`）
 - [ ] **Step 1.2** 创建 `server/` 目录，`npm init` 并安装依赖：fastify、better-sqlite3、zod、dotenv；dev 依赖：typescript、tsx、vitest、@types/node、@types/better-sqlite3
 - [ ] **Step 1.3** 配置 tsconfig（ESM、strict、NodeNext 模块解析），配 `npm run dev`（tsx watch）与 `npm test`（vitest run）脚本
 - [ ] **Step 1.4** 写 `.env.example`（LLM_BASE_URL / LLM_API_KEY / LLM_MODEL 三个占位）与 `.gitignore`（node_modules、.env、data/app.db）
