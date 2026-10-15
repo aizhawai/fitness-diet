@@ -9,6 +9,8 @@
  */
 
 import type { DatabaseSync } from 'node:sqlite'
+import type { callLlm } from '../ai/llm.js'
+import { isLlmConfigured } from '../ai/llm.js'
 import { calcBmr, calcDailyTarget, calcMacros } from '../core/bmr.js'
 import { splitMeals } from '../core/mealSplit.js'
 import { calcNutrition } from '../core/nutrition.js'
@@ -20,6 +22,11 @@ import { latestWeight } from '../db/repos/weightRepo.js'
 import { getPlan, listPlansSince, savePlan } from '../db/repos/planRepo.js'
 import type { PlanSource, StoredPlan } from '../db/repos/planRepo.js'
 import { listFeedback } from '../db/repos/feedbackRepo.js'
+import {
+  generateMealWithAi,
+  replaceDishWithAi,
+  type ReplaceResult,
+} from '../services/chefService.js'
 import type {
   Dish,
   DishFeedback,
@@ -27,6 +34,7 @@ import type {
   Food,
   MacroTarget,
   MealTarget,
+  MealType,
 } from '../types.js'
 
 export type { PlanSource, StoredPlan }
@@ -194,6 +202,13 @@ export interface GeneratePlanOptions {
   source?: 'algo' | 'ai'
   /** 缺省 true：同日已存在则覆盖重生成；false 则直接返回已有计划 */
   force?: boolean
+  /**
+   * 算法降级时是否允许 AI 兜底接管该餐，**缺省 false**。
+   * 前端要显式开启才走 AI：AI 是网络调用，不该由后端默默替用户决定。
+   */
+  useAiFallback?: boolean
+  /** 注入 LLM 实现，测试用假实现；不传则用 callLlm */
+  callLlmImpl?: typeof callLlm
 }
 
 /**
@@ -202,10 +217,10 @@ export interface GeneratePlanOptions {
  * @param db 数据库连接（同时也可由 opts.db 传入，二者以本参数为准）
  * @param opts 生成选项，opts.db 缺省时取 db
  */
-export function generatePlan(
+export async function generatePlan(
   db: DatabaseSync,
   opts: GeneratePlanOptions = { db },
-): StoredPlan {
+): Promise<StoredPlan> {
   const conn = opts.db ?? db
   const date = opts.date ?? localDate()
   const source: PlanSource = opts.source ?? 'algo'
@@ -218,7 +233,7 @@ export function generatePlan(
   }
 
   const meals = resolveMealTargets(conn, hasTraining, localDate())
-  const dayPlan: DayPlan = generateDay({
+  let dayPlan: DayPlan = generateDay({
     date,
     meals,
     dishes: loadAllDishes(),
@@ -226,7 +241,99 @@ export function generatePlan(
     history: buildHistory(conn, date),
     feedback: loadPreference(conn),
   })
-  return savePlan(conn, date, dayPlan, source)
+
+  const fallback = await applyAiFallback(dayPlan, meals, opts)
+  dayPlan = fallback.dayPlan
+  return savePlan(conn, date, dayPlan, source, fallback.aiMeals)
+}
+
+/**
+ * AI 兜底（Task 17）。
+ *
+ * 只在 generateDay 产出 degraded 且调用方显式开启时介入，逐个降级餐次让 AI 重新配一遍：
+ * 校验配料 → 算营养 → 不达标就缩放克数（逐菜 + 整餐各一次）。
+ *
+ * 🔴 设计文档第 8 节的硬要求：**任何一步失败都静默回退算法原方案** ——
+ * LLM 挂了 / 配料解析不了 / 缩放后仍不达标，一律只打一条 warn，
+ * 绝不因 AI 不可用而让用户拿不到食谱，degraded 也照实保留。
+ */
+async function applyAiFallback(
+  dayPlan: DayPlan,
+  targets: MealTarget[],
+  opts: GeneratePlanOptions,
+): Promise<{ dayPlan: DayPlan; aiMeals?: MealType[] }> {
+  if (opts.useAiFallback !== true) return { dayPlan }
+  // 注入了实现（测试）时不要求 env 齐全；生产路径必须靠这个闸门给出干净的降级信号
+  if (opts.callLlmImpl === undefined && !isLlmConfigured()) {
+    console.warn('[plan] 已开启 AI 兜底但未配置大模型，本次全部降级为算法方案')
+    return { dayPlan }
+  }
+
+  const degradedIdx = dayPlan.meals
+    .map((meal, i) => ({ meal, i }))
+    .filter(({ meal }) => meal.degraded)
+    .map(({ i }) => i)
+  if (degradedIdx.length === 0) return { dayPlan }
+
+  const dishes = loadAllDishes()
+  const meals = dayPlan.meals.slice()
+  const taken = new Set(meals.flatMap((m) => m.dishes.map((p) => p.dish.id)))
+  const aiMeals: MealType[] = []
+
+  for (const idx of degradedIdx) {
+    const meal = meals[idx]
+    const target = targets[idx]
+    if (meal === undefined || target === undefined) continue
+    try {
+      const ai = await generateMealWithAi(
+        {
+          mealType: meal.type,
+          mealLabel: meal.label,
+          mealTarget: target.target,
+          kcalMin: meal.kcalMin,
+          kcalMax: meal.kcalMax,
+          dishes,
+          excludeIds: [...taken],
+        },
+        { callLlmImpl: opts.callLlmImpl },
+      )
+      meals[idx] = {
+        ...meal,
+        dishes: ai.dishes.map((d) => ({
+          dish: {
+            id: d.id,
+            name: d.name,
+            meals: [...d.meals],
+            role: d.role,
+            ingredients: d.ingredients,
+            steps: d.steps,
+            tags: [...d.tags],
+          },
+          nutrition: d.nutrition,
+        })),
+        nutrition: ai.nutrition,
+        inRange: ai.inRange,
+        degraded: !ai.inRange,
+      }
+      aiMeals.push(meal.type)
+    } catch (e) {
+      // 静默降级：这一餐继续用算法的降级方案，全天照样能拿到完整食谱
+      console.warn(
+        `[plan] ${dayPlan.date} ${meal.type} 的 AI 兜底失败，沿用算法方案：${e instanceof Error ? e.message : String(e)}`,
+      )
+    }
+  }
+
+  if (aiMeals.length === 0) return { dayPlan }
+  return {
+    dayPlan: {
+      date: dayPlan.date,
+      meals,
+      total: sumMacros(meals.map((m) => m.nutrition)),
+      degraded: meals.some((m) => m.degraded),
+    },
+    aiMeals,
+  }
 }
 
 // ---------- reroll ----------
@@ -412,7 +519,7 @@ export function rerollDish(
     total: sumMacros(meals.map((m) => m.nutrition)),
     degraded: meals.some((m) => m.degraded),
   }
-  const plan = savePlan(db, date, dayPlan, current.source)
+  const plan = savePlan(db, date, dayPlan, current.source, current.aiMeals)
 
   const newDish = plan.meals[mealIndex]?.dishes[dishIndex]?.dish
   return {
@@ -425,4 +532,90 @@ export function rerollDish(
     },
     keptOriginal: result.keptOriginal,
   }
+}
+
+// ---------- AI 换一道（写回计划） ----------
+
+export interface AiReplaceOptions {
+  /** 注入 LLM 实现，测试用假实现；不传则用 callLlm */
+  callLlmImpl?: typeof callLlm
+  temperature?: number
+  maxTokens?: number
+}
+
+export interface AiReplacePlanResult {
+  /** 换菜细节（营养差、整餐是否达标、是否缩放过） */
+  result: ReplaceResult
+  /** 写回后的完整计划（已落库） */
+  plan: StoredPlan
+}
+
+/**
+ * 把当天计划里的某一道菜换成 AI 推荐的新菜，并写回计划。
+ *
+ * 流程与 rerollDish 对称：取计划 → 校验索引 → 调 AI 换菜 → 重算该餐与全天的
+ * nutrition / inRange / degraded → 落库（其余餐次原样保留）。
+ *
+ * 🔴 AI 换菜失败（未配置 / LLM 挂了 / 配料解析不了）时抛 ChefError，
+ * **且绝不在失败路径上写库** —— 当天计划保持原样，用户还可以走算法 reroll。
+ */
+export async function replaceDishInPlanWithAi(
+  db: DatabaseSync,
+  date: string,
+  mealIndex: number,
+  dishIndex: number,
+  opts: AiReplaceOptions = {},
+): Promise<AiReplacePlanResult> {
+  const current = getPlan(db, date)
+  if (current === null) {
+    throw new PlanError('PLAN_NOT_FOUND', `${date} 还没有食谱计划，请先生成`, 404)
+  }
+  const meal = current.meals[mealIndex]
+  if (meal === undefined) {
+    throw new PlanError('INDEX_OUT_OF_RANGE', `餐次下标越界：mealIndex=${mealIndex}`, 400)
+  }
+  const targetDish = meal.dishes[dishIndex]
+  if (targetDish === undefined) {
+    throw new PlanError('INDEX_OUT_OF_RANGE', `菜品下标越界：dishIndex=${dishIndex}`, 400)
+  }
+
+  const mealTarget = toMealTarget(meal, current.total.kcal)
+  const siblingNutrition = sumMacros(
+    meal.dishes.filter((_, i) => i !== dishIndex).map((p) => p.nutrition),
+  )
+
+  // 下面这一步失败会直接冒泡给路由层，此时尚未落库，计划没被动过
+  const result = await replaceDishWithAi(
+    {
+      dish: targetDish,
+      mealTarget: mealTarget.target,
+      mealKcalMin: meal.kcalMin,
+      mealKcalMax: meal.kcalMax,
+      siblingNutrition,
+      dishes: loadAllDishes(),
+    },
+    { callLlmImpl: opts.callLlmImpl, temperature: opts.temperature, maxTokens: opts.maxTokens },
+  )
+
+  const dishes = meal.dishes.slice()
+  dishes[dishIndex] = result.dish
+  const nutrition = sumMacros(dishes.map((p) => p.nutrition))
+  const hit = isMealInRange(nutrition, mealTarget)
+
+  const meals = current.meals.slice()
+  meals[mealIndex] = {
+    ...meal,
+    dishes,
+    nutrition,
+    inRange: hit,
+    degraded: !hit,
+  }
+  const dayPlan: DayPlan = {
+    date,
+    meals,
+    total: sumMacros(meals.map((m) => m.nutrition)),
+    degraded: meals.some((m) => m.degraded),
+  }
+  const plan = savePlan(db, date, dayPlan, current.source, current.aiMeals)
+  return { result, plan }
 }

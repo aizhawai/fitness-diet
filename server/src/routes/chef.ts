@@ -4,15 +4,18 @@
  */
 
 import type { FastifyInstance } from 'fastify'
+import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import { UnknownFoodError, calcNutrition } from '../core/nutrition.js'
 import { getFoodIndex, listFoodsBrief } from '../data/load.js'
+import { openDefaultDb } from '../db/sqlite.js'
 import {
   ChefError,
   cookFromFoods,
   saveCookedDish,
   type ChefErrorCode,
 } from '../services/chefService.js'
+import { PlanError, replaceDishInPlanWithAi } from '../services/planService.js'
 import type { Dish } from '../types.js'
 
 // ---------- 校验 schema（zod v4 顶层 API） ----------
@@ -49,6 +52,12 @@ const cookedDishSchema = z.object({
   steps: z.string().min(1, { error: '做法不能为空' }),
   tags: z.array(z.string()),
   nutrition: macroSchema,
+})
+
+const replaceDishSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: '日期必须是 YYYY-MM-DD' }),
+  mealIndex: z.number().int().min(0, { error: 'mealIndex 不能为负' }),
+  dishIndex: z.number().int().min(0, { error: 'dishIndex 不能为负' }),
 })
 
 // ---------- 工具 ----------
@@ -96,6 +105,13 @@ function businessError(
 export interface ChefRoutesOptions {
   /** 注入 cookFromFoods，测试用假实现；不传则用真实实现 */
   cook?: typeof cookFromFoods
+  /** 注入 replaceDishInPlanWithAi，测试用假实现；不传则用真实实现 */
+  replaceDish?: typeof replaceDishInPlanWithAi
+  /**
+   * 换菜路由要读写 diet_plans。app.ts 注册本插件时不传 db（那是 plan 路由的连接），
+   * 因此这里**懒加载默认库**：只有真的调换菜接口时才打开，避免白白开一个连接。
+   */
+  db?: DatabaseSync
 }
 
 export async function chefRoutes(
@@ -103,6 +119,12 @@ export async function chefRoutes(
   opts: ChefRoutesOptions,
 ): Promise<void> {
   const cook = opts?.cook ?? cookFromFoods
+  const replaceDish = opts?.replaceDish ?? replaceDishInPlanWithAi
+  let lazyDb: DatabaseSync | null = opts?.db ?? null
+  const db = (): DatabaseSync => {
+    if (lazyDb === null) lazyDb = openDefaultDb()
+    return lazyDb
+  }
 
   // 食材清单：前端「AI 厨师」页按 8 类分组勾选用
   app.get('/api/foods', async () => ({ foods: listFoodsBrief() }))
@@ -144,6 +166,32 @@ export async function chefRoutes(
       const dish: Dish = saveCookedDish({ ...parsed.data, nutrition })
       return { dish }
     } catch (e) {
+      return businessError(reply, e)
+    }
+  })
+
+  /**
+   * AI 换一道菜（与算法 reroll-dish 并列的「替代推荐」）。
+   *
+   * 成功返回 { result, plan }：result 是换菜细节（营养差、整餐是否达标、是否缩放过），
+   * plan 是写回后的当天计划。失败一律不落库 —— 当天计划保持原样。
+   */
+  app.post('/api/chef/replace-dish', async (request, reply) => {
+    const parsed = replaceDishSchema.safeParse(request.body)
+    if (!parsed.success) return fail(reply, parsed.error)
+
+    try {
+      const { result, plan } = await replaceDish(
+        db(),
+        parsed.data.date,
+        parsed.data.mealIndex,
+        parsed.data.dishIndex,
+      )
+      return { result, plan }
+    } catch (e) {
+      if (e instanceof PlanError) {
+        return reply.status(e.status).send({ error: e.message, code: e.code })
+      }
       return businessError(reply, e)
     }
   })

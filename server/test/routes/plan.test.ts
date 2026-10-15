@@ -235,11 +235,11 @@ describe('计划落库与查询', () => {
     await setupUser()
     const first = await generate('2026-10-14')
 
-    const same = generatePlan(db, { db, date: '2026-10-14', force: false })
+    const same = await generatePlan(db, { db, date: '2026-10-14', force: false })
     expect(same).toEqual(first)
 
     // force 缺省为 true：重生成并覆盖
-    const regen = generatePlan(db, { db, date: '2026-10-14' })
+    const regen = await generatePlan(db, { db, date: '2026-10-14' })
     expect(regen.date).toBe('2026-10-14')
     expect(listPlans(db)).toHaveLength(1)
   })

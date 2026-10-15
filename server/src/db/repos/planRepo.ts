@@ -4,6 +4,10 @@
  * meals_json 存 planner 的 PlannedMeal[]（含菜品、配料、单菜营养与每餐汇总），
  * 进仓储时 JSON.stringify，出仓储时 JSON.parse 成结构化数据 —— 业务层拿到的永远是对象。
  *
+ * 2026-10 起额外承载可选的 aiMeals（哪些餐次由 AI 兜底接管）：
+ * **不改表结构**，没这个字段时仍然写裸数组；有这个字段时写成
+ * `{"meals":[...],"aiMeals":[...]}`。两种形态读出来都一样，老数据不受影响。
+ *
  * 注意：
  * - node:sqlite 不能绑定 undefined，limit 缺省时要分开拼 SQL。
  * - 返回行是 null-prototype 对象，这里统一转成手工构造的普通对象。
@@ -11,7 +15,7 @@
 
 import type { DatabaseSync } from 'node:sqlite'
 import type { DayPlan, PlannedMeal } from '../../core/planner.js'
-import type { MacroTarget } from '../../types.js'
+import type { MacroTarget, MealType } from '../../types.js'
 
 /** 计划来源：算法生成 / AI 生成 / 手工编辑 */
 export type PlanSource = 'algo' | 'ai' | 'manual'
@@ -29,6 +33,11 @@ export interface StoredPlan {
   /** 任一餐降级 */
   degraded: boolean
   source: PlanSource
+  /**
+   * 哪些餐次由 AI 兜底接管（Task 17）。
+   * 可选字段，老数据 / 纯算法生成的计划都没有，缺省即为「全是算法出的」。
+   */
+  aiMeals?: MealType[]
 }
 
 const round1 = (x: number): number => Math.round(x * 10) / 10
@@ -63,15 +72,16 @@ function toTotal(row: Record<string, unknown>): MacroTarget {
   }
 }
 
-/** meals_json → PlannedMeal[]；非法 JSON 降级为空数组，不让读接口整体崩掉 */
-function decodeMeals(text: unknown): PlannedMeal[] {
-  if (typeof text !== 'string' || text === '') return []
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    return []
-  }
+/** meals_json 的解码结果：各餐 + 可选的 AI 接管餐次 */
+interface DecodedPlan {
+  meals: PlannedMeal[]
+  /** 老数据（裸数组）与新数据（对象）都能解出这个字段，无则 undefined */
+  aiMeals?: MealType[]
+}
+
+const MEAL_TYPES: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
+
+function decodeMealArray(parsed: unknown): PlannedMeal[] {
   if (!Array.isArray(parsed)) return []
 
   const meals: PlannedMeal[] = []
@@ -94,10 +104,37 @@ function decodeMeals(text: unknown): PlannedMeal[] {
   return meals
 }
 
+/**
+ * meals_json → { meals, aiMeals }；非法 JSON 降级为空数组，不让读接口整体崩掉。
+ *
+ * 兼容两种形态：
+ * - 裸数组（Task 17 之前的老数据，也是没有 AI 兜底时的默认写法）
+ * - `{ "meals": [...], "aiMeals": [...] }`（AI 兜底接管过餐次时）
+ */
+function decodePlanPayload(text: unknown): DecodedPlan {
+  if (typeof text !== 'string' || text === '') return { meals: [] }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return { meals: [] }
+  }
+
+  if (Array.isArray(parsed)) return { meals: decodeMealArray(parsed) }
+  if (parsed === null || typeof parsed !== 'object') return { meals: [] }
+
+  const obj = parsed as Record<string, unknown>
+  const meals = decodeMealArray(obj['meals'])
+  const rawAi = obj['aiMeals']
+  if (!Array.isArray(rawAi)) return { meals }
+  const aiMeals = rawAi.filter((v): v is MealType => MEAL_TYPES.includes(v as MealType))
+  return aiMeals.length > 0 ? { meals, aiMeals } : { meals }
+}
+
 /** 行 → StoredPlan（行是 null-prototype，这里显式构造普通对象） */
 function toPlan(row: Record<string, unknown>): StoredPlan {
-  const meals = decodeMeals(row['meals_json'])
-  return {
+  const { meals, aiMeals } = decodePlanPayload(row['meals_json'])
+  const plan: StoredPlan = {
     date: String(row['date'] ?? ''),
     total: toTotal(row),
     meals,
@@ -105,9 +142,18 @@ function toPlan(row: Record<string, unknown>): StoredPlan {
     degraded: meals.some((m) => m.degraded),
     source: normalizeSource(row['source']),
   }
+  // 缺省就不带这个 key，老数据 / 纯算法计划读出来与以前完全一致
+  if (aiMeals !== undefined) plan.aiMeals = aiMeals
+  return plan
 }
 
 const COLUMNS = 'date, total_kcal, protein_g, carb_g, fat_g, meals_json, source'
+
+/** 编码 meals_json：有 aiMeals 才用对象形态，否则沿用裸数组（老数据零改动） */
+function encodeMealsJson(dayPlan: DayPlan, aiMeals?: MealType[]): string {
+  if (aiMeals === undefined || aiMeals.length === 0) return JSON.stringify(dayPlan.meals)
+  return JSON.stringify({ meals: dayPlan.meals, aiMeals })
+}
 
 /** 保存（或覆盖）某天的计划，返回保存后的计划 */
 export function savePlan(
@@ -115,6 +161,7 @@ export function savePlan(
   date: string,
   dayPlan: DayPlan,
   source: PlanSource,
+  aiMeals?: MealType[],
 ): StoredPlan {
   db.prepare(
     `INSERT INTO diet_plans (date, total_kcal, protein_g, carb_g, fat_g, meals_json, source)
@@ -132,19 +179,21 @@ export function savePlan(
     dayPlan.total.protein_g,
     dayPlan.total.carb_g,
     dayPlan.total.fat_g,
-    JSON.stringify(dayPlan.meals),
+    encodeMealsJson(dayPlan, aiMeals),
     normalizeSource(source),
   )
 
   const saved = getPlan(db, date)
   // 刚写完必然读得到，这里兜底避免返回 null 让调用方崩
-  return saved ?? {
+  const fallback: StoredPlan = {
     date,
     total: dayPlan.total,
     meals: dayPlan.meals,
     degraded: dayPlan.degraded,
     source: normalizeSource(source),
   }
+  if (aiMeals !== undefined && aiMeals.length > 0) fallback.aiMeals = aiMeals
+  return saved ?? fallback
 }
 
 /** 读某天的计划，无记录返回 null */
