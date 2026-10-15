@@ -1,15 +1,16 @@
 # 交接归档 — 健身减脂饮食管理
 
-> 归档时间：2026-10-15
-> 状态：**M1~M4 全部任务已完成**。后端 399 测试全绿；前端 7 个页面全部浏览器实测通过。
-> 分支：未建分支，全部提交在 main（13 个 commit）
-> 剩余：配 LLM Key 后验真实 AI 路径、可选的小程序构建、全流程回归打 tag
+> 归档时间：2026-10-15（第二次更新：接入 MiniMax / Anthropic 协议）
+> 状态：**M1~M4 全部任务已完成**。后端 430 测试全绿；前端 7 个页面全部浏览器实测通过。
+> 分支：`master` 冻结在已验证基线；AI 协议适配在 `feat/anthropic-llm-protocol`（**尚未合并**）
+> 剩余：合并 AI 分支、可选的小程序构建、全流程回归打 tag
 
 ---
 
 ## 一、当前状态一句话
 
-**实施计划的 M1~M4 全部做完**。今日食谱（M2）与 AI 增强（M3）之外，M1 的验收标准「改体重目标热量立刻变」已在真实浏览器验证通过。剩下的都是锦上添花：配 Key 验真实 AI、可选修小程序构建、跑一次全流程回归打 tag。
+**实施计划的 M1~M4 全部做完**，并且**真实 AI 路径已经跑通**（2026-10-15 接入 MiniMax，走 Anthropic 协议）。
+`master` 保持为「随时可跑、已验证」的基线；后续改动一律先开分支，不直接落 master。
 
 ---
 
@@ -56,19 +57,33 @@
 | M4：阶段建议接线 | 距 1kg → `nearing`/`strong`/建议切均衡减脂 |
 | 数据包质量 | 233 食材 / 164 菜谱，16 组合每组 ≥8，foodId/unit 零非法，热量全落区间 |
 
+### 已实测（2026-10-15，接入 MiniMax 真实 Key）
+
+用 `scripts/llm-smoke.ts` 与 API 直打（非浏览器），模型 `MiniMax-M3.1-Flash-Preview`：
+
+| 验收项 | 结果 |
+|---|---|
+| Anthropic 协议端到端 | ✅ `POST /anthropic/v1/messages` 返回 200，适配器解析正确 |
+| `LLM_EFFORT` 合法值 | ✅ 用**反向对照**确认（填乱值 → 400 并列出 `low/medium/high/xhigh/max`） |
+| 🔴 thinking 块过滤 | ✅ 真实响应里 thinking 与 text **混排**，过滤逻辑生效 |
+| AI 看料做菜 `chef/cook` | ✅ 6.5 秒，返回 2 道菜；AI 只给菜名/配料/做法，**营养四栏由后端算**（317 kcal / 42.7g 蛋白） |
+| AI 自作主张补食材 | ✅ 它补了未提供的 `hua_sheng_you` / `shi_yan`，且都在食材表清单内 |
+| 算法路径未受影响 | ✅ 三餐全达标、零降级（早餐 681/670，午餐 810/893，晚餐 687/669） |
+| `UNKNOWN_FOOD` 分支 | ✅ 传错 foodId → 400 + `missingIds` |
+| 超时降级 | ✅ 触发 `LLMError(timeout)` → `LLM_FAILED` + `llmKind`，不炸服务 |
+
 ### 未验证 / 有缺口（重要）
 
-1. **AI 成功路径完全没跑过** —— 本机没有 LLM Key，后端只会回 `NOT_CONFIGURED`。以下全部**只做了代码走查**：
-   - `POST /api/chef/cook` 出菜卡渲染、配料中文名+克数、营养四栏
-   - `POST /api/chef/save-dish` 实际往返
-   - `LLM_FAILED`(timeout/network/schema)、`UNRESOLVABLE_INGREDIENTS`、`EMPTY`、`UNKNOWN_FOOD`、离线这几条分支的真实返回形状
-   - `UNKNOWN_DISH` 反馈分支
-   - 真实 prompt 效果、超时表现、模型返回质量
-2. **`mp-weixin` 构建失败**（M5 远期，不在计划范围）
-3. **前端未做小程序端实测**
-4. **长按（`@longpress`）未实测**，只测了点 `⋯`
-5. 历史页空态、降级条、阶段建议条的**真实数据**渲染未亲眼看到（当时后端是旧版本，字段还不存在）
-6. 分页加载只用小页长验过，没造过多天真实数据
+1. **AI 换一道 `replace-dish` 尚未跑通** —— 见下方「六·AI 接入实测踩的坑」，已定位原因并改了代码，但**改完还没实测复验**
+2. **AI 兜底生成（`useAiFallback`）未跑过**
+3. **`POST /api/chef/save-dish` 未实测**（会写共享的 `dishes.user.json`，故意没碰）
+4. **`UNKNOWN_DISH` 反馈分支**未实测
+5. **前端浏览器未验 AI 流程** —— 本轮验证全是 API 直打，AI 厨师页/换菜按钮的渲染未亲眼看到
+6. **`mp-weixin` 构建失败**（M5 远期，不在计划范围）
+7. **前端未做小程序端实测**
+8. **长按（`@longpress`）未实测**，只测了点 `⋯`
+9. 历史页空态、降级条、阶段建议条的**真实数据**渲染未亲眼看到（当时后端是旧版本，字段还不存在）
+10. 分页加载只用小页长验过，没造过多天真实数据
 
 ---
 
@@ -129,18 +144,110 @@
 
 ---
 
+## 五之二、AI 接入实测踩的坑（2026-10-15 新增）
+
+### 6. 🔴 thinking 块与 text 块混排，取 `content[0].text` 必挂
+
+MiniMax 的 Anthropic 响应里 `content` 是**块数组**，thinking 与 text 混排，且**即使不要求思考也会返回 thinking 块**。
+若沿用 OpenAI 那套 `content[0].text` 的写法，会直接拿到 thinking 块的 `undefined` → parse 失败 → 白白重试两次 → 报 `LLM_FAILED`。
+
+> **必须**按 `type === 'text'` 过滤，且把**所有** text 块拼起来（不能只取第一个）。
+
+### 7. 🔴 思考 token 从 max_tokens 里扣，额度太小会「没有 text 块」
+
+实测：换菜路径原本给 `max_tokens: 900`，配 `LLM_EFFORT` 后思考过程把额度吃光，返回里只剩 thinking 块。
+**已做两件事**：① 把三个入口的 max_tokens 统一提到 2000，并抽成具名常量 + 注释说明原因；② 把 `LLM_EFFORT` 降到 `medium`。
+
+> 教训：**JSON 本身只要几百 token，多出来的额度是留给思考的，不是浪费。** 别再往小调。
+
+### 8. 🔴 判断顺序：截断必须排在「没有 text 块」前面
+
+思考吃光额度时，`content` 里只剩 thinking 块 → 会命中「没有 text 块」分支 → `truncated` 没被置位 → **重试 prompt 里没有「精简输出」提示** → 第二次必然原样再失败。已调整顺序并补了单测。
+
+### 9. 🔴 `callLlm` 的重试有个盲区（既有问题，本次顺带暴露）
+
+`requestOnce` 抛出的**可重试**错误走 `continue` 分支，**跳过了追加修正说明**，等于盲重发同一份请求。
+原先 `requestOnce` 只会抛网络/超时/http 类错误，所以从没踩到；加了「截断」这种 parse 类错误后才暴露。
+已改为：内容类失败也落到统一的修正分支。（`buildCorrection` 里本来就写好了 http 重试的提示文案，说明原作者本意如此，只是被 `continue` 跳过了。）
+
+### 10. ⚠️ `base_resp.status_code` 业务错误藏在 HTTP 200 里
+
+MiniMax 会以 **HTTP 200** 返回带 `base_resp.status_code !== 0` 的信封。只看 HTTP 状态码会把失败当成功。
+已归为 `LLMError('http')`，且**刻意不填 `status`** —— 业务码动辄几千，填进去会被 `isRetryable` 的 `>= 500` 判成服务端故障而白白重试。
+
+### 11. 🔴 模型编造食材 id —— 根因是 prompt 漏了一整块，不是模型笨
+
+实测模型给出了 `shou_mo_fan_zhong_fan`、`yan_shui_mao_dou` 这类不存在的 id（真实 id 是 `shou_mo_fan`）。
+
+**根因**：`buildReplacePrompt` 的 `candidateLines` 只给了模型**菜的 id**（`shou_mo_fan_wo_tou` 这种），
+JSON 模板却要求它填 **`foodId`（食材 id）** —— 模型从头到尾**没见过任何合法食材清单**，只能编。
+`buildMealPrompt`（整餐兜底）更糟，**一个清单都没有**。只有出菜路径（`buildCookPrompt`）是对的，
+因为那里的食材是用户勾选的、带真实 id。
+
+已做三层修复（见「五之三」）。
+
+### 12. ⚠️ `xhigh` 延迟极不稳定
+
+同一模型同一路径，耗时在 **1.8 秒 ~ 43 秒**之间跳（43 秒那次直接撞穿 30 秒默认超时）。
+所以 `LLM_TIMEOUT_MS` 这次直接设到 180000，并且默认超时仍保持 30s 不变（不配即行为不变）。
+
+---
+
+## 五之三、AI 结构化输出改造（2026-10-15 第二轮）
+
+### 13. 🔴 三层防「编造 id」，缺一不可
+
+| 层 | 做法 | 拦住什么 |
+|---|---|---|
+| 提示 | 按 role 从**真实菜谱**提取食材清单（33~54 种，enum 约 600B） | 让模型**看得见**能选什么 |
+| 协议 | `tools` + **强制** `tool_choice`，`inputSchema.foodId` 写 `enum` | 让模型**结构上编不出来** |
+| 校验 | zod `z.enum` 兜底 | 编了也**过不了** → 重试并告知合法集合 |
+
+> 只做提示层不够（模型不保证遵守）；只做 zod 不够（重试时模型不知道合法集合，只能瞎猜）。
+> **强制 `tool_choice` 很关键** —— 非强制时模型可能只回文字不调工具。
+
+### 14. ⚠️ 食材清单按 role 取，别塞全部 233 种
+
+实测各 role 真实用到的食材数：staple 52 / protein 54 / vegetable 44 / simple 33。
+按 role 取：语义对（新菜必须同 role）、数据来自真实菜谱、enum 约 600 字节。
+全量 233 种要 2.8KB —— 4~5 倍体积换不来任何好处。
+
+### 15. ⚠️ 行为变更：换菜路径的非法 foodId 不再报 `UNRESOLVABLE_INGREDIENTS`
+
+| | 之前 | 现在 |
+|---|---|---|
+| 模型给了非法 foodId | 直接 `UNRESOLVABLE_INGREDIENTS`（不重试） | 重试一次（告知合法集合）→ 仍失败才 `LLM_FAILED` + `llmKind=schema` |
+
+**这是有意为之**：重试才是修复本身。代价是重试后仍失败时错误码从具体变笼统。
+`UNRESOLVABLE_INGREDIENTS` 仍然保留给「单位换算不了」这类场景，以及**未受约束的出菜路径**。
+
+### 16. ⚠️ 隐私：偏好与历史会离开本机
+
+按需求给 AI 喂了「用户口味（不吃/一般/喜欢）」+「最近 4 天实际搭配」。
+**这意味着饮食记录与偏好标记会被发到模型服务商（当前是 MiniMax）。**
+出菜路径不涉及这些，只发用户勾选的食材。
+
+### 17. ⚠️ 注入 `callLlmImpl` 会整个替换掉 `callLlm`
+
+测试里注入假实现后，`callLlm` **内部的重试逻辑不会执行**。
+断言「应该重试了一次」时别写在 service 层测试里 —— 那些用例本来就只调一次。
+
+---
+
 ## 六、疑问与待决策
 
 ### 需要你拍板的
 
 | # | 问题 | 我的建议 |
 |---|---|---|
-| 1 | **LLM 用哪家？** 需要 `LLM_API_KEY`（DeepSeek / Kimi / 通义等 OpenAI 兼容接口）填进 `server/.env` | **优先级最高** —— 这是唯一还没验证的主功能路径。不配也能正常用（纯算法） |
+| 1 | ~~LLM 用哪家~~ | ✅ 已定：**MiniMax**（`MiniMax-M3.1-Flash-Preview`），走 Anthropic 协议 |
 | 2 | **mp-weixin 构建失败要不要修？** rollup 找不到 Vue 内部导出 `isInSSRComponentSetup`，属 uni 官方包与 Vue 的版本契约问题 | 不急，M5 不在本期；但真要上小程序这是第一道坎 |
 | 3 | **「换一道」是确定性的**（同一份计划重复换同一槽位得到同一道菜） | 想「每次换一个」需引入随机源，会牺牲可复现性。要不要？ |
 | 4 | **1200 kcal 下限时晚餐会 degraded**（菜库最小组合已接近区间上限） | 根治要补一批**小份菜**，尤其早餐素菜只有 10 道、池子太浅。值得补 |
 | 5 | **AI 换出来的菜不在菜谱库里**，所以①之后算法换不回来 ②**用户没法评价它**（`/api/feedback` 要求 dishId 在菜库中） | 前端已写友好提示，但根因在后端/产品规则：要么 AI 换菜成功时自动 `saveCookedDish`，要么明确「AI 菜不可评价」。**建议自动入库** |
 | 6 | **前端 `api/chef.ts` 自带了一个 `codeRequest()`**，没复用 `request.ts` 的 `request()` | 因为后者抛的 `ApiError` 取不到业务 `code` 字段，而按错误码分流正是本项目重点。**最干净的收口**：给 `request.ts` 的 `ApiError` 补 `code`/`llmKind`/`missingIds` 三个字段，然后改回复用 |
+| 7 | ~~模型编造食材 id，换菜不自愈~~ | ✅ 已修：三层防线（真实食材清单 + 强制 tool_choice + z.enum），见五之三·13 |
+| 8 | **隐私：偏好与历史发给第三方**（见五之三·16） | 你的饮食记录会到 MiniMax。功能上已按需求实现；要不要加个开关默认关闭，由你定 |
 
 ### 技术债
 
@@ -154,26 +261,34 @@
 
 ## 七、环境残留（下次开工先处理）
 
+> ⚠️ 2026-10-15 更新：上一版记的 PID（28420 / 17272 / 45764）已全部失效，
+> 当时的 5173 / 5274 dev server 也已退出。**下面是本轮 AI 验证新留下的**：
+
 ```
-taskkill /PID 28420        # 5274 端口的临时 dev server（验证 AI 厨师页时起的）
-taskkill /PID 17272 /F     # 3000 端口的旧后端（Task 19 之前的代码版本）
+taskkill /PID 42772 /F     # 3000 端口，跑的是旧配置（30s 超时），已失效但仍占着端口
+taskkill /PID 5108 /F      # 3001 端口，中途改配置后重启失败留下的孤儿
+taskkill /PID 12252 /F     # 3001 端口尝试重启时 EADDRINUSE 失败退出的那个（若还在）
 ```
 
-- **3000**：PID 17272 —— 旧代码后端，一直被它占着，导致前端验证长期对着旧 API
-- **3001**：最新代码后端（`DATA_DIR` 指向临时目录，测试反馈都写在那里，主库 `app.db` 干净：1 条计划 + 1 条体重）
-- **5173**：PID 45764，本项目 dev server
-- **5274**：PID 28420，临时 dev server
+- **3000**：PID 42772 —— **配置已过期**（`LLM_EFFORT=xhigh` + 30s 超时），前端若连它会表现为超时
+- **3001**：PID 5108 —— 同上，也是旧配置
+- **3002**：本轮验证用的最新代码后端（`DATA_DIR` 指向 `server/.e2e-data/`，已被 gitignore）
+- **5173 / 5274**：本轮**没起**前端 dev server（验证全走的 API 直打）
+- **主库 `app.db` 仍是干净的**（1 条计划 + 1 条体重），本轮所有测试数据都写进了 `.e2e-data/`
+
+> 为什么要留 3002 而不是清理干净？因为 Claude Code 的后台任务停止后**杀不掉 tsx 派生的 node 子进程**，
+> 权限分类器也拒绝放行 `taskkill`。改用新端口是最省事的绕行（同 HANDOFF 上一版记的做法）。
 
 ---
 
 ## 八、续做步骤
 
 ```bash
-# 1. 清理残留进程
-taskkill /PID 28420
-taskkill /PID 17272 /F
+# 1. 清理残留进程（见第七节）
+taskkill /PID 42772 /F
+taskkill /PID 5108 /F
 
-# 2. 起后端（最新代码）
+# 2. 起后端（最新代码 + 你的 .env）
 cd server && npx tsx src/index.ts          # → localhost:3000
 
 # 3. 起前端
@@ -183,14 +298,18 @@ cd client && npm run dev:h5                 # → localhost:5173
 cd server && npx vitest run && npx tsc --noEmit
 cd client && npm run typecheck && npm run build:h5
 cd server && npx tsx scripts/planner-smoke.ts   # 真实数据算法体检
+cd server && npx tsx scripts/llm-smoke.ts       # 🔴 会真调 LLM 接口（花钱）
 
-# 5. 打 tag
+# 5. 合并 AI 分支、跑全流程回归后打 tag
+git checkout master && git merge feat/anthropic-llm-protocol
 git tag v0.1.0
 ```
 
 **待办清单**（按优先级）：
-- [ ] 配 `server/.env` 的 LLM Key，验真实 AI 路径（看料做菜 / 存菜谱 / AI 换菜 / 兜底）
-- [ ] 重启后端后做一次**完整前后端联调**（现在的验证是绕开旧进程做的）
+- [ ] **决策疑问 7**（编造食材 id 的根治方案），修好后复验「AI 换一道」
+- [ ] 前端浏览器验一遍 AI 流程（本轮全是 API 直打，页面渲染没亲眼看）
+- [ ] 验 AI 兜底生成（`useAiFallback`）与 `save-dish`
+- [ ] 合并 `feat/anthropic-llm-protocol` 回 master
 - [ ] 跑一次全流程回归：建档→记体重→生成→换菜→AI 做菜→反馈→历史→趋势图，打 tag v0.1.0
 - [ ] 视决策补一批小份菜到菜谱库（治 1200 kcal 退化 + 加深早餐池）
 - [ ] 视决策处理疑问 5（AI 菜入库）与疑问 6（ApiError 补字段收口）

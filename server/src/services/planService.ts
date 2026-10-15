@@ -26,6 +26,7 @@ import { listFeedback } from '../db/repos/feedbackRepo.js'
 import {
   generateMealWithAi,
   replaceDishWithAi,
+  type HistoryEntry,
   type ReplaceResult,
 } from '../services/chefService.js'
 import type {
@@ -158,6 +159,35 @@ export function loadPreference(db: DatabaseSync): DishFeedback[] {
   return listFeedback(db)
 }
 
+/**
+ * 喂给 AI 的历史天数上限。
+ *
+ * 刻意限量：历史对 AI 来说只是「搭配参考」，给太多不会让它配得更好，
+ * 只会让 prompt 变长、token 变贵、模型更容易分心。
+ */
+const AI_HISTORY_DAYS = 4
+
+/**
+ * 取最近 N 天的实际食谱，供 AI 参考搭配思路（换菜 / 整餐兜底都会用）。
+ *
+ * 今天的不算「历史」—— 那正是模型正在替换的那一餐，拿它当参考等于让模型抄自己。
+ */
+function buildAiHistory(db: DatabaseSync, on: string): HistoryEntry[] {
+  const since = shiftDate(on, -AI_HISTORY_DAYS)
+  const entries: HistoryEntry[] = []
+  for (const plan of listPlansSince(db, since)) {
+    if (plan.date >= on) continue
+    for (const meal of plan.meals) {
+      const names = meal.dishes.map((d) => d.dish.name)
+      if (names.length > 0) entries.push({ date: plan.date, mealLabel: meal.label, dishNames: names })
+    }
+  }
+  // N 天 × 三餐，量已经可控；这里只防历史里出现超长的一天把 prompt 顶爆
+  return entries
+    .slice(-AI_HISTORY_DAYS * 3)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
 // ---------- 目标计算 ----------
 
 /**
@@ -244,7 +274,7 @@ export async function generatePlan(
     feedback: loadPreference(conn),
   })
 
-  const fallback = await applyAiFallback(dayPlan, meals, opts)
+  const fallback = await applyAiFallback(conn, dayPlan, meals, opts)
   dayPlan = fallback.dayPlan
   return withSuggestion(conn, savePlan(conn, date, dayPlan, source, fallback.aiMeals))
 }
@@ -286,6 +316,7 @@ export function attachStageSuggestion(db: DatabaseSync, plan: StoredPlan): Store
  * 绝不因 AI 不可用而让用户拿不到食谱，degraded 也照实保留。
  */
 async function applyAiFallback(
+  db: DatabaseSync,
   dayPlan: DayPlan,
   targets: MealTarget[],
   opts: GeneratePlanOptions,
@@ -322,6 +353,9 @@ async function applyAiFallback(
           kcalMax: meal.kcalMax,
           dishes,
           excludeIds: [...taken],
+          // 让 AI 知道用户不吃什么、以及最近实际怎么吃的
+          feedback: loadPreference(db),
+          history: buildAiHistory(db, dayPlan.date),
         },
         { callLlmImpl: opts.callLlmImpl },
       )
@@ -621,6 +655,9 @@ export async function replaceDishInPlanWithAi(
       mealKcalMax: meal.kcalMax,
       siblingNutrition,
       dishes: loadAllDishes(),
+      // 让 AI 避开用户不吃的东西，并参考最近 4 天实际怎么吃的
+      feedback: loadPreference(db),
+      history: buildAiHistory(db, date),
     },
     { callLlmImpl: opts.callLlmImpl, temperature: opts.temperature, maxTokens: opts.maxTokens },
   )

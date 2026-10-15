@@ -10,7 +10,14 @@
  */
 
 import { z } from 'zod'
-import { LLMError, callLlm, isLlmConfigured, type LlmErrorKind } from '../ai/llm.js'
+import {
+  LLMError,
+  callLlm,
+  isLlmConfigured,
+  zodToJsonSchema,
+  type LlmErrorKind,
+  type LlmTool,
+} from '../ai/llm.js'
 import { UnknownFoodError, assertFoodsExist, calcNutrition } from '../core/nutrition.js'
 import type { PlannedDish } from '../core/planner.js'
 import {
@@ -23,9 +30,11 @@ import {
 } from '../data/load.js'
 import type {
   Dish,
+  DishFeedback,
   DishRole,
   Food,
   FoodCategory,
+  FeedbackScore,
   Ingredient,
   MacroTarget,
   MealType,
@@ -258,6 +267,18 @@ export function buildRetryPrompt(basePrompt: string, missingIds: string[]): stri
 // ---------- LLM 调用与错误映射 ----------
 
 /**
+ * 三个入口各自的 max_tokens 预算。
+ *
+ * ⚠️ 别再往小了调：模型开了思考强度（Anthropic 协议的 output_config.effort）后，
+ * **思考 token 同样从这个额度里扣**。额度太小会出现「思考把额度吃光、
+ * 正文一个字没输出」的情况，表现为返回里没有 text 块。实测换菜原本给 900 就踩过这个坑。
+ * JSON 本身其实只要几百 token，多出来的余量是留给思考的，不是浪费。
+ */
+const MAX_TOKENS_COOK = 2000
+const MAX_TOKENS_REPLACE = 2000
+const MAX_TOKENS_MEAL = 2000
+
+/**
  * 调一次 LLM 并把 LLMError 归一为 ChefError（config 单独归为未配置）。
  * 换菜 / 整餐兜底复用同一套错误映射，只换 schema 与 maxTokens。
  */
@@ -266,6 +287,8 @@ async function invokeLlmWith<T>(
   schema: z.ZodType<T>,
   opts: CookOptions,
   maxTokens: number,
+  toolName = 'emit_result',
+  toolDescription = '按给定结构输出结果',
 ): Promise<T> {
   const impl = opts.callLlmImpl ?? callLlm
   try {
@@ -274,6 +297,8 @@ async function invokeLlmWith<T>(
       system: SYSTEM_PROMPT,
       temperature: opts.temperature ?? 0.5,
       maxTokens: opts.maxTokens ?? maxTokens,
+      // 强制结构化输出：模型必须按 schema 调工具，foodId 的枚举由协议层保证
+      tool: toolFromSchema(schema, toolName, toolDescription),
     })
   } catch (e) {
     if (e instanceof LLMError) {
@@ -290,7 +315,7 @@ async function invokeLlmWith<T>(
 
 /** 调一次 LLM 并把 LLMError 归一为 ChefError（config 单独归为未配置） */
 function invokeLlm(prompt: string, opts: CookOptions): Promise<AiDishOutput> {
-  return invokeLlmWith(prompt, aiDishSchema, opts, 1500)
+  return invokeLlmWith(prompt, aiDishSchema, opts, MAX_TOKENS_COOK)
 }
 
 // ---------- 结果换算 ----------
@@ -596,6 +621,10 @@ export interface ReplaceDishInput {
   siblingNutrition: MacroTarget
   /** 候选：整个菜库，用于排除换回同一道 */
   dishes: Dish[]
+  /** 用户对菜品的偏好（不吃/一般/喜欢）；缺省视为无偏好 */
+  feedback?: DishFeedback[]
+  /** 最近几天的实际搭配，只作参考。**调用方负责限制天数**以控制 prompt 体积 */
+  history?: HistoryEntry[]
 }
 
 export interface ReplaceResult {
@@ -623,16 +652,18 @@ function gapLine(label: string, target: number, current: number): string {
  * 该槽位的候选清单：role 与原菜一致、餐次与原菜有交集，按 id 升序取前 N 道。
  * 原菜本身排除在清单外（换回同一道等于没换）。
  */
-function candidateLines(input: ReplaceDishInput): string {
+function candidateLines(input: ReplaceDishInput, disliked?: ReadonlySet<string>): string {
   const original = input.dish.dish
   const meals = original.meals
-  return input.dishes
+  const lines = input.dishes
     .filter((d) => d.role === original.role && d.meals.some((m) => meals.includes(m)))
     .filter((d) => d.id !== original.id)
+    // 用户标了「不吃」的直接不进候选，省得模型选了再被后端拒
+    .filter((d) => disliked === undefined || !disliked.has(d.id))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .slice(0, REPLACE_CANDIDATE_LIMIT)
     .map((d) => `- ${d.name}（id：${d.id}）`)
-    .join('\n')
+  return lines.join('\n')
 }
 
 /**
@@ -645,6 +676,10 @@ export function buildReplacePrompt(input: ReplaceDishInput): string {
   const old = input.dish.nutrition
   const range = ROLE_KCAL_RANGE[original.role]
   const siblings = input.siblingNutrition
+  const foodIds = foodIdsForRole(original.role)
+  const disliked = new Set(
+    (input.feedback ?? []).filter((f) => f.score === -1).map((f) => f.dishId),
+  )
   return [
     `要把下面这道菜换成一道新的（同一次调用只换一道）：`,
     `被换掉的菜：${original.name}（id：${original.id}，角色：${original.role}）`,
@@ -659,12 +694,21 @@ export function buildReplacePrompt(input: ReplaceDishInput): string {
     `这一餐的整体热量区间：${input.mealKcalMin}~${input.mealKcalMax} kcal。`,
     '',
     `新菜的 role 固定为 ${original.role}（${ROLE_LABELS[original.role]}），单份热量落在 ${range.min}~${range.max} kcal。`,
+    // 🔴 这段是治「模型编造食材 id」的关键：以前这里只给了**菜**的 id，
+    // 却要求模型填**食材** id，模型没见过合法清单只能瞎编。
+    // 清单取自真实菜谱里该 role 实际用到的食材，约 30~55 种，体积可控。
+    '',
+    `可用食材清单（foodId **只能**从这里选，不要发明清单外的 id）：`,
+    foodLines(foodsByIds(foodIds)),
+    ...preferenceLines(input.feedback, input.dishes),
+    ...historyLines(input.history),
+    '',
     '只能参考下面这些菜（换个名字或重新组合配料都行，但别选回被换掉的那道）：',
-    candidateLines(input),
+    candidateLines(input, disliked),
     '',
     '要求：',
     '1. 只输出 1 道新菜；',
-    '2. ingredients[].amount 是克数，unit 一律填 "g"；',
+    '2. ingredients[].foodId 必须来自上面的清单；amount 是克数，unit 一律填 "g"；',
     '3. steps 用中文写 1~2 句做法简述；',
     '4. 不要输出任何营养数字（kcal、protein_g、carb_g、fat_g），后端会按食材表实算。',
     '',
@@ -696,9 +740,11 @@ export async function replaceDishWithAi(
   const role = original.role
   const output = await invokeLlmWith(
     buildReplacePrompt(input),
-    aiReplaceSchema,
+    buildAiReplaceSchema(foodIdsForRole(original.role)),
     opts,
-    900,
+    MAX_TOKENS_REPLACE,
+    'emit_dish',
+    '输出一道替换后的新菜',
   )
   const draft = output.dish
 
@@ -756,6 +802,156 @@ export async function replaceDishWithAi(
 export const aiMealSchema = z.object({
   dishes: z.array(aiDishCoreSchema).min(1).max(4),
 })
+
+// ---------- 真实食材清单 ----------
+
+/**
+ * 某个 role 的菜谱里真实用到的食材 id（去重、按 id 升序）。
+ *
+ * 为什么按 role 取，而不是把全部 233 种食材一股脑塞给模型：
+ * 1. **语义对**：新菜必须与被换掉的那道同 role，食材本来就落在同一类；
+ * 2. **数据真实**：来自真实菜谱，不是我们拍脑袋列的清单；
+ * 3. **体积可控**：每个 role 33~54 种（enum 约 600 字节），全量 233 种要 2.8KB。
+ */
+const roleFoodCache = new Map<DishRole, string[]>()
+
+export function foodIdsForRole(role: DishRole): string[] {
+  const cached = roleFoodCache.get(role)
+  if (cached !== undefined) return cached
+  const ids = new Set<string>()
+  for (const dish of loadAllDishes()) {
+    if (dish.role !== role) continue
+    for (const ing of dish.ingredients) ids.add(ing.foodId)
+  }
+  const sorted = [...ids].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+  roleFoodCache.set(role, sorted)
+  return sorted
+}
+
+/** 若干 role 的食材并集（整餐兜底要从零配、角色不固定，用这个） */
+export function foodIdsForRoles(roles: readonly DishRole[]): string[] {
+  const ids = new Set<string>()
+  for (const role of roles) for (const id of foodIdsForRole(role)) ids.add(id)
+  return [...ids].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+}
+
+/** 按 id 取食材对象；取不到的直接丢掉 —— 清单里混进未知 id 反而会误导模型 */
+function foodsByIds(ids: readonly string[]): Food[] {
+  const foodIndex = getFoodIndex()
+  const foods: Food[] = []
+  for (const id of ids) {
+    const f = foodIndex.get(id)
+    if (f !== undefined) foods.push(f)
+  }
+  return foods
+}
+
+// ---------- 受约束的 schema ----------
+
+/**
+ * 单条配料，但 **foodId 锁成枚举**。
+ *
+ * 这是治「模型编造食材 id」的硬保证：枚举外的 id 连 zod 都过不去，
+ * 于是自动变成 schema 失败 → `callLlm` 把校验错误塞回 prompt 重试一次。
+ */
+function ingredientSchemaOf(foodIds: readonly string[]) {
+  const idSchema =
+    foodIds.length > 0 ? z.enum(foodIds as [string, ...string[]]) : z.string().min(1)
+  return z.object({
+    foodId: idSchema,
+    amount: z.number().positive(),
+    unit: z.string().min(1),
+  })
+}
+
+/** 一道菜的核心结构，foodId 限定在给定集合内 */
+function aiDishCoreSchemaOf(foodIds: readonly string[]) {
+  return z.object({
+    name: z.string().min(1),
+    role: roleEnum,
+    ingredients: z.array(ingredientSchemaOf(foodIds)).min(1),
+    steps: z.string().min(1),
+  })
+}
+
+/** 换菜用的 schema：foodId 锁在给定 role 的真实食材内 */
+export function buildAiReplaceSchema(foodIds: readonly string[]) {
+  return z.object({ dish: aiDishCoreSchemaOf(foodIds) })
+}
+
+/** 整餐兜底用的 schema：foodId 锁在给定 role 集合的食材并集内 */
+export function buildAiMealSchema(foodIds: readonly string[]) {
+  return z.object({ dishes: z.array(aiDishCoreSchemaOf(foodIds)).min(1).max(4) })
+}
+
+/**
+ * 把 schema 包成「强制结构化输出」的工具。
+ *
+ * 有了 tools + 强制 tool_choice，模型必须按 schema 吐 JSON，enum 也由协议层保证。
+ * 转不动（老版本 zod）就返回 undefined，退回纯提示词 + zod 校验，不至于把功能打挂。
+ */
+function toolFromSchema<T>(schema: z.ZodType<T>, name: string, description: string): LlmTool | undefined {
+  try {
+    return { name, description, inputSchema: zodToJsonSchema(schema as z.ZodType<unknown>) }
+  } catch {
+    return undefined
+  }
+}
+
+// ---------- 偏好与历史 ----------
+
+/** 用户最近某一天某一餐实际吃过的菜，用于给模型一点搭配惯性 */
+export interface HistoryEntry {
+  date: string
+  mealLabel: string
+  dishNames: string[]
+}
+
+const SCORE_LABEL: Record<FeedbackScore, string> = {
+  '-1': '不吃（绝对不要出现）',
+  '0': '一般（尽量避开）',
+  '1': '喜欢（优先考虑）',
+}
+
+/** 展示顺序：先说喜欢，再说一般，最后说不吃 —— 「不吃」放最后印象最深 */
+const SCORE_ORDER: readonly FeedbackScore[] = [1, 0, -1]
+
+/**
+ * 把用户偏好渲染成 prompt 段落。
+ *
+ * 拿不到菜名（AI 菜不在菜库、反馈指向已下架的菜）就整条跳过 —— 宁可少说，
+ * 也不能给模型一个「不吃：undefined」这种垃圾指令。
+ */
+function preferenceLines(feedback: readonly DishFeedback[] | undefined, dishes: readonly Dish[]): string[] {
+  if (feedback === undefined || feedback.length === 0) return []
+  const nameOf = new Map(dishes.map((d) => [d.id, d.name]))
+  const buckets = new Map<FeedbackScore, string[]>()
+  for (const f of feedback) {
+    const name = nameOf.get(f.dishId)
+    if (name === undefined) continue
+    const list = buckets.get(f.score) ?? []
+    list.push(name)
+    buckets.set(f.score, list)
+  }
+  const lines: string[] = []
+  for (const score of SCORE_ORDER) {
+    const names = buckets.get(score)
+    if (names === undefined || names.length === 0) continue
+    lines.push(`  ${SCORE_LABEL[score]}：${names.join('、')}`)
+  }
+  if (lines.length === 0) return []
+  return ['', '用户口味（必须遵守）：', ...lines]
+}
+
+/** 最近几天的实际搭配，只作参考。调用方负责限制天数（prompt 体积） */
+function historyLines(history: readonly HistoryEntry[] | undefined): string[] {
+  if (history === undefined || history.length === 0) return []
+  return [
+    '',
+    `用户最近 ${history.length} 天的实际搭配（只作参考，不要照抄，也别和今天重复）：`,
+    ...history.map((h) => `- ${h.date} ${h.mealLabel}：${h.dishNames.join('、')}`),
+  ]
+}
 export type AiMealOutput = z.infer<typeof aiMealSchema>
 
 export interface MealAiInput {
@@ -768,6 +964,10 @@ export interface MealAiInput {
   dishes: Dish[]
   /** 已被别的环节占用的菜品 id，避免生成重复 id */
   excludeIds?: string[]
+  /** 用户对菜品的偏好；缺省视为无偏好 */
+  feedback?: DishFeedback[]
+  /** 最近几天的实际搭配，只作参考。**调用方负责限制天数** */
+  history?: HistoryEntry[]
 }
 
 export interface MealAiResult {
@@ -778,9 +978,10 @@ export interface MealAiResult {
   scaled: boolean
 }
 
-function mealCandidateLines(input: MealAiInput): string {
+function mealCandidateLines(input: MealAiInput, disliked?: ReadonlySet<string>): string {
   return input.dishes
     .filter((d) => d.meals.includes(input.mealType))
+    .filter((d) => disliked === undefined || !disliked.has(d.id))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .slice(0, REPLACE_CANDIDATE_LIMIT)
     .map((d) => `- ${d.name}（id：${d.id}，${ROLE_LABELS[d.role]}）`)
@@ -793,6 +994,12 @@ export function buildMealPrompt(input: MealAiInput): string {
   const ranges = (Object.keys(ROLE_KCAL_RANGE) as DishRole[])
     .map((r) => `- ${r}：单份 ${ROLE_KCAL_RANGE[r].min}~${ROLE_KCAL_RANGE[r].max} kcal`)
     .join('\n')
+  // 这里角色不固定（主食/蛋白/素菜都可能出），所以用全部 role 的食材并集。
+  // 与换菜路径同样的毛病：以前这段**一个食材清单都没有**，模型只能瞎编 foodId。
+  const foodIds = foodIdsForRoles(Object.keys(ROLE_KCAL_RANGE) as DishRole[])
+  const disliked = new Set(
+    (input.feedback ?? []).filter((f) => f.score === -1).map((f) => f.dishId),
+  )
   return [
     `请为「${input.mealLabel}」这一餐配一套完整的搭配（目前这一餐凑不齐，需要从零配）。`,
     '',
@@ -806,12 +1013,17 @@ export function buildMealPrompt(input: MealAiInput): string {
     '各角色的单份热量区间：',
     ranges,
     '',
+    `可用食材清单（foodId **只能**从这里选，不要发明清单外的 id）：`,
+    foodLines(foodsByIds(foodIds)),
+    ...preferenceLines(input.feedback, input.dishes),
+    ...historyLines(input.history),
+    '',
     '可参考的菜（可沿用，也可重新组合配料，注意不要与当天的其它餐重复太多）：',
-    mealCandidateLines(input),
+    mealCandidateLines(input, disliked),
     '',
     '要求：',
     '1. 通常给 1~3 道菜，每道菜要覆盖一个不同的角色（如主食 + 高蛋白 + 素菜）；',
-    '2. ingredients[].amount 是克数，unit 一律填 "g"；',
+    '2. ingredients[].foodId 必须来自上面的清单；amount 是克数，unit 一律填 "g"；',
     '3. steps 用中文写 1~2 句做法简述；',
     '4. 不要输出任何营养数字（kcal、protein_g、carb_g、fat_g），后端会按食材表实算。',
     '',
@@ -840,7 +1052,14 @@ export async function generateMealWithAi(
   }
 
   const foodIndex = getFoodIndex()
-  const output = await invokeLlmWith(buildMealPrompt(input), aiMealSchema, opts, 1500)
+  const output = await invokeLlmWith(
+    buildMealPrompt(input),
+    buildAiMealSchema(foodIdsForRoles(Object.keys(ROLE_KCAL_RANGE) as DishRole[])),
+    opts,
+    MAX_TOKENS_MEAL,
+    'emit_dishes',
+    '输出这一餐的整套搭配',
+  )
 
   const allIngredients: Ingredient[] = []
   for (const d of output.dishes) allIngredients.push(...d.ingredients)

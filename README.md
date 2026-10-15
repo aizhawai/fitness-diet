@@ -27,6 +27,22 @@ npm run dev:h5
 
 然后：档案页填身体档案 → 记录当天体重 → 回今日页看目标热量 → 点「生成今日食谱」。
 
+### LLM 配置
+
+`.env` 里三项必填（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`），**适配器同时支持两套协议**，不用额外开关 —— 地址里带 `/anthropic` 就自动走 Anthropic 协议（`x-api-key` + `anthropic-version`），否则走 OpenAI 兼容协议（`Authorization: Bearer`）。
+
+| 方案 | 地址示例 | 说明 |
+|---|---|---|
+| Anthropic | `https://api.minimax.cn/anthropic` | 国内站 key 只能在 `.cn` / `.minimaxi.com`，国际站 `.io` 会 401 |
+| OpenAI 兼容 | `https://api.deepseek.com/v1` | DeepSeek / Kimi / 通义 / 智谱 |
+
+可选增强项：`LLM_EFFORT`（思考强度，只在 Anthropic 协议下下发，代码不校验、原样透传）、`LLM_TIMEOUT_MS`（超时，默认 30s）、`LLM_PROTOCOL`（强制指定协议）。
+
+验证 Key 能不能用（会真的调一次接口）：
+```bash
+cd server && npx tsx scripts/llm-smoke.ts
+```
+
 ## 目录结构
 
 ```
@@ -89,7 +105,7 @@ fitness/
 
 ```bash
 cd server
-npm test          # 389 条全量单测
+npm test          # 430 条全量单测
 npm run typecheck # 0 error
 
 cd ../client
@@ -105,6 +121,7 @@ npm run build:h5
 cd server
 npx tsx scripts/planner-smoke.ts       # 各热量档位下各餐是否落区间、7 天是否重复
 npx tsx scripts/breakfast-repro.ts     # 早餐槽位的退化排查
+npx tsx scripts/llm-smoke.ts           # 🔴 会真调一次 LLM 接口（花钱）；验 Key 与协议适配
 ```
 
 ## 环境说明（与原始实施计划的三处偏差）

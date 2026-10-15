@@ -7,3 +7,5 @@ data/*.db-wal
 data/*.db-shm
 coverage/
 src/data/dishes.user.json
+# 端到端验证用的临时数据目录（DATA_DIR=.e2e-data），整目录忽略
+.e2e-data/

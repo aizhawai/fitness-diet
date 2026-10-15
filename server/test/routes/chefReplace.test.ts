@@ -56,7 +56,12 @@ const CHICKEN = { id: 'ji_xiong_rou', kcal: 133 }
 const BROCCOLI = { id: 'xi_lan_hua', kcal: 36 }
 const RICE = { id: 'shou_mo_fan', kcal: 116 }
 const EGG = { id: 'jidan', kcal: 144, gramPerPiece: 50 }
-const OIL = { id: 'hua_sheng_you', kcal: 899 }
+/**
+ * 油。挑 `gan_lan_you` 而不是 `hua_sheng_you`：两者都是 899 kcal/100g（换算不影响
+ * 下面按 kcal 算的断言），但只有橄榄油出现在 protein 类菜谱里 —— 换菜 schema 现在
+ * 用 z.enum 把 foodId 锁在该 role 真实用到的食材内，fixture 必须与之相符。
+ */
+const OIL = { id: 'gan_lan_you', kcal: 899 }
 const UNKNOWN_ID = 'ji_chi_mo_gu'
 
 /** 被换掉的那道菜：菜谱库里真实存在的早餐主食 */
@@ -342,7 +347,30 @@ describe('replaceDishWithAi 的 prompt 内容', () => {
     const system = fake.calls[0]?.system ?? ''
     expect(system).toContain('营养')
     expect(system).toContain('后端')
-    expect(fake.calls[0]?.schema).toBe(aiReplaceSchema)
+  })
+
+  it('🔴 schema 把 foodId 锁在该 role 真实用到的食材内（编造的 id 进不来）', async () => {
+    const fake = constantLlm(GOOD_REPLACE_OUTPUT)
+    await replaceDishWithAi(replaceInput(), { callLlmImpl: fake.impl })
+
+    // 被换的是 staple 类菜，schema 应当按 staple 真实食材动态构造
+    const schema = fake.calls[0]?.schema as z.ZodType<{ dish: { ingredients: Array<{ foodId: string }> } }>
+    expect(schema.safeParse(GOOD_REPLACE_OUTPUT).success).toBe(true)
+    // 真实 staple 食材：通过
+    expect(
+      schema.safeParse({ dish: { ...GOOD_REPLACE_OUTPUT.dish, ingredients: [{ foodId: 'fan_qie', amount: 100, unit: 'g' }] } })
+        .success,
+    ).toBe(true)
+    // 枚举外的 id：挡下（这正是治「模型编造食材 id」的那道闸）
+    expect(
+      schema.safeParse({ dish: { ...GOOD_REPLACE_OUTPUT.dish, ingredients: [{ foodId: 'shou_mo_fan_zhong_fan', amount: 100, unit: 'g' }] } })
+        .success,
+    ).toBe(false)
+    // 鸡胸肉确实不在 staple 类菜谱里，所以也该被挡
+    expect(
+      schema.safeParse({ dish: { ...GOOD_REPLACE_OUTPUT.dish, ingredients: [{ foodId: 'ji_xiong_rou', amount: 100, unit: 'g' }] } })
+        .success,
+    ).toBe(false)
   })
 })
 
@@ -382,7 +410,8 @@ describe('replaceDishWithAi 热量缩放', () => {
         ...GOOD_REPLACE_OUTPUT.dish,
         ingredients: [
           { foodId: RICE.id, amount: 600, unit: 'g' },
-          { foodId: CHICKEN.id, amount: 300, unit: 'g' },
+          // 同属 staple 类真实食材（鸡胸肉不在 staple 清单里，会被枚举挡下）
+          { foodId: 'jidan', amount: 300, unit: 'g' },
         ],
       },
     })
@@ -488,8 +517,11 @@ function stripSuggestion<T extends { suggestion?: unknown }>(plan: T | null): Om
 }
 
 describe('replaceDishInPlanWithAi 失败不落库', () => {
-  it('配料解析不了 → UNRESOLVABLE_INGREDIENTS，且当天计划一字未改', async () => {
+  it('🔴 编造食材 id → 重试后仍错，归为 LLM_FAILED，且当天计划一字未改', async () => {
     const { db, plan, mealsJson } = await setupPlanWithDish()
+    // constantLlm 每次都返回同一个坏结果，所以重试也救不回来 —— 这里验的是终态：
+    // 枚举外的 id 在 schema 阶段就被挡下（早于 UNRESOLVABLE_INGREDIENTS 那一层），
+    // 重试一次后失败，且无论如何都不写库。
     const fake = constantLlm({
       dish: {
         ...GOOD_REPLACE_OUTPUT.dish,
@@ -501,8 +533,10 @@ describe('replaceDishInPlanWithAi 失败不落库', () => {
       (e: unknown) => e,
     )
     expect(err).toBeInstanceOf(ChefError)
-    expect((err as ChefError).code).toBe('UNRESOLVABLE_INGREDIENTS')
-    expect((err as ChefError).missingIds).toEqual([UNKNOWN_ID])
+    expect((err as ChefError).code).toBe('LLM_FAILED')
+    expect((err as ChefError).llmKind).toBe('schema')
+    // 注意：这里注入的 callLlmImpl **整个替换掉** callLlm，所以不会触发它内部的重试
+    // （重试在 llm.test.ts 里验），只调一次是预期的
 
     // 回查数据库：落库的 meals_json 与调用前逐字节相同
     expect(mealsJsonOf(db)).toBe(mealsJson)
@@ -516,7 +550,8 @@ describe('replaceDishInPlanWithAi 失败不落库', () => {
     const fake = constantLlm({
       dish: {
         ...GOOD_REPLACE_OUTPUT.dish,
-        ingredients: [{ foodId: CHICKEN.id, amount: 2, unit: '毫升' }],
+        // 用一个真实存在、但没有「毫升」换算的食材（番茄只有 g/个）
+        ingredients: [{ foodId: 'fan_qie', amount: 2, unit: '毫升' }],
       },
     })
 
@@ -641,7 +676,7 @@ describe('POST /api/chef/replace-dish', () => {
     })
   })
 
-  it('AI 配料解析不了 → 400 + UNRESOLVABLE_INGREDIENTS，计划不变', async () => {
+  it('AI 编造食材 id → 400 + LLM_FAILED（枚举在 schema 阶段就挡住了），计划不变', async () => {
     const { db, mealsJson } = await setupPlanWithDish()
     const fake = constantLlm({
       dish: {
@@ -656,9 +691,9 @@ describe('POST /api/chef/replace-dish', () => {
         payload: { date: DATE, mealIndex: 0, dishIndex: 0 },
       })
       expect(res.statusCode).toBe(400)
-      const body = res.json() as { code: string; missingIds: string[] }
-      expect(body.code).toBe('UNRESOLVABLE_INGREDIENTS')
-      expect(body.missingIds).toEqual([UNKNOWN_ID])
+      const body = res.json() as { code: string; llmKind?: string }
+      expect(body.code).toBe('LLM_FAILED')
+      expect(body.llmKind).toBe('schema')
     })
     expect(mealsJsonOf(db)).toBe(mealsJson)
   })
@@ -848,7 +883,16 @@ describe('generatePlan 的 AI 兜底', () => {
     expect(prompt).toContain('早餐')
     expect(prompt).toContain('还差')
     expect(prompt).toContain('不要输出任何营养数字')
-    expect(fake.calls[0]?.schema).toBe(aiMealSchema)
+    // schema 按「全部 role 的食材并集」动态构造，把 foodId 锁进枚举
+    const mealSchema = fake.calls[0]?.schema as z.ZodType<{
+      dishes: Array<{ ingredients: Array<{ foodId: string }> }>
+    }>
+    expect(mealSchema.safeParse(GOOD_MEAL_OUTPUT).success).toBe(true)
+    expect(
+      mealSchema.safeParse({
+        dishes: [{ ...GOOD_MEAL_OUTPUT.dishes[0], ingredients: [{ foodId: 'yan_shui_mao_dou', amount: 100, unit: 'g' }] }],
+      }).success,
+    ).toBe(false)
     // 至少列出一道真实菜名供模型参考
     const sample = loadAllDishes().find((d) => d.meals.includes('breakfast'))
     if (sample === undefined) throw new Error('菜库里没有早餐菜')
