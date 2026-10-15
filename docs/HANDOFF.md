@@ -142,6 +142,19 @@
 
 > 改 planner 后**必须**跑 `npx tsx scripts/planner-smoke.ts` 与 `scripts/breakfast-repro.ts`。
 
+### 18. 🔴 一键工具（2026-10-15 第三轮）
+
+`setup.bat` / `start.bat` + `scripts/{setup,start}.mjs`，把「装依赖 → 建 .env → 起双服务 → 开浏览器 → 干净关闭」收成一次点击。
+
+写它的时候踩到的四个坑，**每个都会在别的机器上复现**：
+
+1. **`spawn EINVAL`**：Windows 上 `npm` 实际是 `npm.cmd`，Node 20.12+ 起不带 shell 直接 spawn 批处理文件会抛这个错。必须绕一层 `cmd.exe /c`。⚠️ 本机因为依赖早就装好、跳过了 install，**测不出来** —— 只有全新 clone 才会踩。
+2. **端口探测漏判**：`isPortFree` 绑 `0.0.0.0` 会漏掉「只监听 `[::1]`」的程序，而 **vite 默认就只听 `[::1]`**。漏判后 vite 又会静默换端口，两边地址错位。现在三个地址（`0.0.0.0` / `127.0.0.1` / `::1`）都试，任一失败即判定占用。
+3. **`process.on('exit')` 里 await 不住**：`void killChild(...)` 看着在清理，实际异步 `execFile` 还没跑完进程就退出了 → 留下孤儿。必须用 `spawnSync` 版本。（`SIGINT` 路径可以正常 await，所以只有强杀/关窗口这条兜底路径有洞。）
+4. **`netstat -ano -p tcp` 在这台机器上无输出**（只输出一行乱码），只能用 `netstat -ano`。且匹配要认准「本地地址」列，否则会把连接误当监听。
+
+配套：`client/vite.config.ts` 的 `strictPort` 由 `STRICT_PORT=1` 打开 —— 端口冲突时**大声失败**好过 vite 静默换端口。
+
 ---
 
 ## 五之二、AI 接入实测踩的坑（2026-10-15 新增）
@@ -261,49 +274,37 @@ JSON 模板却要求它填 **`foodId`（食材 id）** —— 模型从头到尾
 
 ## 七、环境残留（下次开工先处理）
 
-> ⚠️ 2026-10-15 更新：上一版记的 PID（28420 / 17272 / 45764）已全部失效，
-> 当时的 5173 / 5274 dev server 也已退出。**下面是本轮 AI 验证新留下的**：
+> ⚠️ 2026-10-15 更新：这一节基本作废了 ——
+> **`start.bat` 会自己处理端口占用**（问你要不要杀），Ctrl+C 一次全停、不留孤儿。
+> 下面只剩一条历史遗留：
 
 ```
-taskkill /PID 42772 /F     # 3000 端口，跑的是旧配置（30s 超时），已失效但仍占着端口
-taskkill /PID 5108 /F      # 3001 端口，中途改配置后重启失败留下的孤儿
-taskkill /PID 12252 /F     # 3001 端口尝试重启时 EADDRINUSE 失败退出的那个（若还在）
+taskkill /PID 39496 /F     # 一键工具写完之前留下的 vite 孤儿（当时 exit 处理器里 await 不住）
 ```
 
-- **3000**：PID 42772 —— **配置已过期**（`LLM_EFFORT=xhigh` + 30s 超时），前端若连它会表现为超时
-- **3001**：PID 5108 —— 同上，也是旧配置
-- **3002**：本轮验证用的最新代码后端（`DATA_DIR` 指向 `server/.e2e-data/`，已被 gitignore）
-- **5173 / 5274**：本轮**没起**前端 dev server（验证全走的 API 直打）
-- **主库 `app.db` 仍是干净的**（1 条计划 + 1 条体重），本轮所有测试数据都写进了 `.e2e-data/`
-
-> 为什么要留 3002 而不是清理干净？因为 Claude Code 的后台任务停止后**杀不掉 tsx 派生的 node 子进程**，
-> 权限分类器也拒绝放行 `taskkill`。改用新端口是最省事的绕行（同 HANDOFF 上一版记的做法）。
+- **主库 `app.db` 仍是干净的**，本轮测试数据都在 `server/.e2e-data/`（已 gitignore）
+- **`src/data/dishes.user.json` 里有 3 道 AI 菜**（浏览器里收藏的，已 gitignore）
 
 ---
 
 ## 八、续做步骤
 
 ```bash
-# 1. 清理残留进程（见第七节）
-taskkill /PID 42772 /F
-taskkill /PID 5108 /F
+# 1. 清理唯一的历史残留（见第七节）
+taskkill /PID 39496 /F
 
-# 2. 起后端（最新代码 + 你的 .env）
-cd server && npx tsx src/index.ts          # → localhost:3000
+# 2. 起服务 —— 双击 start.bat 就行，不用再敲下面这些
+#    npm start
+```
 
-# 3. 起前端
-cd client && npm run dev:h5                 # → localhost:5173
-
-# 4. 全量回归
-cd server && npx vitest run && npx tsc --noEmit
-cd client && npm run typecheck && npm run build:h5
+全量回归：
+```bash
+npm test                    # 后端 430 条
+npm run typecheck           # 前后端一起
 cd server && npx tsx scripts/planner-smoke.ts   # 真实数据算法体检
 cd server && npx tsx scripts/llm-smoke.ts       # 🔴 会真调 LLM 接口（花钱）
-
-# 5. 合并 AI 分支、跑全流程回归后打 tag
-git checkout master && git merge feat/anthropic-llm-protocol
-git tag v0.1.0
 ```
+
 
 **待办清单**（按优先级）：
 - [ ] **决策疑问 7**（编造食材 id 的根治方案），修好后复验「AI 换一道」

@@ -1,0 +1,12 @@
+{
+  "name": "fitness-diet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "本地跑的个人减脂饮食管理工具",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "start": "node scripts/start.mjs",
+    "test": "npm --prefix server test",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck"
+  }
+}

@@ -12,6 +12,30 @@
 
 ## 快速开始
 
+**Windows 上双击就行，两个文件：**
+
+| 文件 | 什么时候用 | 做什么 |
+|---|---|---|
+| **`setup.bat`** | 换电脑、第一次跑 | 检查 Node 版本 → 装前后端依赖 → 建 `.env` → 引导填 LLM 配置 |
+| **`start.bat`** | 日常启动 | 同时起后端与前端 → 等就绪 → 自动开浏览器 |
+
+日常启动只需要 `start.bat` 一个。关掉时按一次 **Ctrl+C**，两个进程连同子进程一起收掉，不留残留占用端口。
+
+不想双击的话，仓库根目录也有 `npm` 脚本（等价）：
+
+```bash
+npm run setup     # 同 setup.bat
+npm start         # 同 start.bat
+```
+
+**端口被占用时会先问你**：显示是哪个 PID 占着，回 `y` 才杀、回 `N` 直接退出。
+想固定用别的端口可以设环境变量 `SERVER_PORT` / `CLIENT_PORT`（前端代理会自动跟着对齐）。
+
+然后：档案页填身体档案 → 记录当天体重 → 回今日页看目标热量 → 点「生成今日食谱」。
+
+<details>
+<summary>手动启动（不用一键工具时）</summary>
+
 ```bash
 # 后端（端口 3000）
 cd server
@@ -24,12 +48,11 @@ cd client
 npm install
 npm run dev:h5
 ```
-
-然后：档案页填身体档案 → 记录当天体重 → 回今日页看目标热量 → 点「生成今日食谱」。
+</details>
 
 ### LLM 配置
 
-`.env` 里三项必填（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`），**适配器同时支持两套协议**，不用额外开关 —— 地址里带 `/anthropic` 就自动走 Anthropic 协议（`x-api-key` + `anthropic-version`），否则走 OpenAI 兼容协议（`Authorization: Bearer`）。
+`setup.bat` 会引导你配；也可以直接编辑 `server/.env`。三项必填（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`），**适配器同时支持两套协议**，不用额外开关 —— 地址里带 `/anthropic` 就自动走 Anthropic 协议（`x-api-key` + `anthropic-version`），否则走 OpenAI 兼容协议（`Authorization: Bearer`）。
 
 | 方案 | 地址示例 | 说明 |
 |---|---|---|
