@@ -2,17 +2,21 @@
 
 本地跑的个人减脂饮食工具。按体重动态算每日热量与宏量，算法生成不重复的每日食谱，AI 做增强（看料做菜 / 换一道 / 兜底）。数据全部存本地 SQLite 文件。
 
+> **需要 Node 24 或更高版本**（后端用了 Node 内置的 `node:sqlite`，22 及以下需要实验性 flag，装完也跑不起来）。
+
 ## 核心设计
 
 **计算与算法全在后端 `core/` 纯函数层** —— 不碰数据库、不碰网络，可独立单测。热量计算、宏量分配、食谱组合是产品心脏；换前端（网页 → 微信小程序）或加 AI，核心算法不动。
 
 **AI 不参与营养计算。** AI 只输出结构化 JSON（菜名 + 配料表），营养数字一律由后端食材表按克数算 —— 从根上规避模型编数字。
 
+**AI 也被约束在「真实数据」里。** 换菜与整餐兜底两条路径会把该角色真实菜谱用到的食材清单喂给模型，并用 `tools` 强制调用把 `foodId` 锁成枚举 —— 模型**结构上就编不出**不存在的食材 id（实测过：不给清单时它会编出 `shou_mo_fan_zhong_fan` 这种）。
+
 **产品永远可用。** AI 挂了、超时、返回垃圾，都静默降级为纯算法生成；算法凑不出达标组合时用「纯食材项」兜底并如实标记 `degraded`。
 
 ## 快速开始
 
-**Windows 上双击就行，两个文件：**
+**Windows 上双击就行，三个文件：**
 
 | 文件 | 什么时候用 | 做什么 |
 |---|---|---|
@@ -34,6 +38,8 @@
 npm run setup     # 同 setup.bat
 npm start         # 同 start.bat
 npm stop          # 同 stop.bat
+npm test          # 后端 430 条单测
+npm run typecheck # 前后端一起
 ```
 
 **端口被占用时会先问你**：显示是哪个 PID 占着，回 `y` 才杀、回 `N` 直接退出。
@@ -56,6 +62,9 @@ cd client
 npm install
 npm run dev:h5
 ```
+
+改了任何依赖版本后**必须重启 dev server** —— Vite 默认不 watch `node_modules`，
+旧进程会继续从内存缓存里发旧版代码。`start.bat` 每次启动都会清缓存，不用你操心。
 </details>
 
 ### LLM 配置
@@ -69,6 +78,10 @@ npm run dev:h5
 
 可选增强项：`LLM_EFFORT`（思考强度，只在 Anthropic 协议下下发，代码不校验、原样透传）、`LLM_TIMEOUT_MS`（超时，默认 30s）、`LLM_PROTOCOL`（强制指定协议）。
 
+> ⚠️ **开了 AI 之后，你的饮食记录会离开这台机器。**
+> 具体发出去的是：算食谱所需的缺口数字、你勾选的食材；**以及（如果你用了 AI 换菜 / 整餐兜底）你的口味标记和最近 4 天吃了什么**。
+> 这些会发给上面配置的模型服务商。不接受的话就把 `LLM_BASE_URL` 留空 —— 食谱会完全由算法生成，其余功能不受影响。
+
 验证 Key 能不能用（会真的调一次接口）：
 ```bash
 cd server && npx tsx scripts/llm-smoke.ts
@@ -78,26 +91,38 @@ cd server && npx tsx scripts/llm-smoke.ts
 
 ```
 fitness/
-├── server/                     后端：Fastify + TypeScript（ESM）
+├── setup.bat / start.bat / stop.bat   一键工具（Windows 双击入口）
+├── package.json                       根 npm 脚本（setup / start / stop / test / typecheck）
+├── scripts/                           一键工具的实现（纯 Node，无依赖）
+│   ├── setup.mjs                      装依赖 + 建 .env + 引导填 Key
+│   ├── start.mjs                      起双服务 + 开浏览器 + 干净关闭
+│   ├── stop.mjs                       找不到启动窗口时的停止办法
+│   └── lib/common.mjs                 端口探测 / 杀进程树 / 开浏览器
+├── server/                            后端：Fastify + TypeScript（ESM）
 │   ├── src/
-│   │   ├── index.ts            入口：起服务
-│   │   ├── app.ts              buildApp()：组装 Fastify 并注册路由
-│   │   ├── types.ts            全局共享类型（core/ 对外的唯一契约）
-│   │   ├── routes/             薄路由层：只做 zod 校验 + 调 service
-│   │   ├── services/           编排层：串起 core + db + ai
-│   │   ├── core/               ★ 纯函数算法层（无 IO，全部可单测）
-│   │   │   ├── bmr.ts          BMR / TDEE / 目标热量 / 宏量分配
-│   │   │   ├── mealSplit.ts    餐次分配（16-8 / 三餐 / 训练日加餐）
-│   │   │   ├── planner.ts      食谱组合算法（打分 + 贪心 + 回溯 + 兜底）
-│   │   │   ├── nutrition.ts    配料 → 营养汇总
-│   │   │   └── stageRule.ts    减脂阶段判定与结构切换建议
-│   │   ├── ai/llm.ts           LLM 适配器（唯一调 LLM 的地方）
-│   │   ├── data/               静态数据包：foods.json / dishes.json
-│   │   └── db/                 SQLite 连接与各表仓储
-│   └── test/                   vitest 单测
-├── client/                     前端：uni-app (Vue3 + TS + Pinia)
+│   │   ├── index.ts                   入口：起服务
+│   │   ├── app.ts                     buildApp()：组装 Fastify 并注册路由
+│   │   ├── types.ts                   全局共享类型（core/ 对外的唯一契约）
+│   │   ├── routes/                    薄路由层：只做 zod 校验 + 调 service
+│   │   ├── services/                  编排层：串起 core + db + ai
+│   │   ├── core/                      ★ 纯函数算法层（无 IO，全部可单测）
+│   │   │   ├── bmr.ts                 BMR / TDEE / 目标热量 / 宏量分配
+│   │   │   ├── mealSplit.ts           餐次分配（16-8 / 三餐 / 训练日加餐）
+│   │   │   ├── planner.ts             食谱组合算法（打分 + 贪心 + 回溯 + 兜底）
+│   │   │   ├── nutrition.ts           配料 → 营养汇总
+│   │   │   └── stageRule.ts           减脂阶段判定与结构切换建议
+│   │   ├── ai/llm.ts                  LLM 适配器（唯一调 LLM 的地方，双协议）
+│   │   ├── data/                      静态数据包：foods.json / dishes.json
+│   │   └── db/                        SQLite 连接与各表仓储
+│   ├── scripts/                       一次性验收脚本（见「测试」）
+│   └── test/                          vitest 单测（430 条）
+├── client/                            前端：uni-app (Vue 3.4.21 + TS + Pinia 2.1.7)
 │   └── src/{pages,components,api,stores}
-└── docs/                       设计文档与实施计划
+└── docs/
+    ├── HANDOFF.md                     交接归档：进度 / 踩坑根因 / 待决策（最完整）
+    ├── AGENT-BRIEF.md                 给 AI 协作者的约定（技术栈、TDD、纪律）
+    ├── superpowers/
+    └── 2026-10-14-fitness-diet*.md     根目录：设计文档与实施计划
 ```
 
 ## 数据
@@ -135,16 +160,15 @@ fitness/
 ## 测试
 
 ```bash
-cd server
-npm test          # 430 条全量单测
-npm run typecheck # 0 error
-
-cd ../client
-npm run typecheck
-npm run build:h5
+npm test           # 后端 430 条
+npm run typecheck  # 前后端一起，必须 0 error
+cd client && npm run build:h5   # 前端构建
 ```
 
-后端测试**零真实网络请求**（LLM 一律注入假实现）、**零真实落盘**（`dishes.user.json` 写到临时目录），可反复跑、结果确定。
+后端测试**零真实网络请求**（LLM 一律注入假实现）、**零真实落盘**，可反复跑、结果确定。
+
+> ⚠️ 如果你在网页上收藏过 AI 做的菜，`src/data/dishes.user.json` 存在会让**几个测试变红**
+> （它们假设菜谱库固定 164 道）。这是既有设计缺陷，不是你弄坏了什么 —— 临时把该文件挪开再跑即可。
 
 一次性验收脚本（改算法后跑一下看真实数据表现）：
 
@@ -155,22 +179,34 @@ npx tsx scripts/breakfast-repro.ts     # 早餐槽位的退化排查
 npx tsx scripts/llm-smoke.ts           # 🔴 会真调一次 LLM 接口（花钱）；验 Key 与协议适配
 ```
 
-## 环境说明（与原始实施计划的三处偏差）
+## 环境说明（与原始实施计划的偏差）
 
 | 项 | 计划 | 实际 | 原因 |
 |---|---|---|---|
 | 数据库 | better-sqlite3 | **Node 内置 `node:sqlite`** | Node 24 下 better-sqlite3 无预编译包，源码编译缺 Visual Studio |
 | uni-app 脚手架 | `npx degit` 官方预设 | **手写工程 + 固定版本** | 沙箱拦截外部包拉取 |
 | BMR 已知案例 | 男 1780 / 女 1321 | **1748.75 / 1320.25** | 计划里的算例与 Mifflin-St Jeor 公式不符，已按公式纠正 |
+| Vue / Pinia 版本 | 未指定 | **Vue 3.4.21 / Pinia 2.1.7（钉死）** | uni-app 自己把 6 个 `@vue/*` 钉在 3.4.21；周边生态已到 Vue 3.5，npm 会为满足它们的 caret 范围**再装一份 3.5.x** → 双 Vue → 白屏。`overrides` 是唯一能压住的手段 |
 
 ## 已知限制
 
 - **微信小程序构建当前失败**（M5 远期功能，不在本期范围）。`npm run build:h5` 正常。报错是 rollup 在打包阶段找不到 Vue 的某个内部导出，属于 uni-app 官方包与 Vue 的版本契约问题，H5 不受影响。
+- **AI 延迟很不稳定**：同一路径实测在 **1.8 秒 ~ 50 秒** 之间跳。所以默认超时 30s 经常不够，用 `LLM_TIMEOUT_MS` 调大（配了思考强度后尤其需要）。
+- **AI 换菜若最终仍给出非法食材 id，报的是 `LLM_FAILED` 而不是 `UNRESOLVABLE_INGREDIENTS`** —— 因为枚举在 schema 阶段就挡下来了，会先重试一次再失败。`UNRESOLVABLE_INGREDIENTS` 仍保留给「单位换算不了」这类场景和未受约束的出菜路径。
 - **每日目标 1200 kcal（下限）时晚餐可能报 `degraded`**：菜库最小的「主食 + 蛋白」组合已接近该区间上限，再加蔬菜必超。算法选择宁可如实报降级，也不做「缺蛋白却标达标」的假达标。
 - 单餐目标超过约 1400 kcal（16-8 大餐次、极高热量）时，三四个菜凑不满，同样标 `degraded`。
 - 食谱**不缩放克数**：靠「选择」而非「调整用量」来贴合目标，所以极端目标下的精度不如缩放方案。
 - `reroll-dish` 是**确定性**的：同一份计划重复换同一个槽位会得到同一道菜（没有随机源）。想要「每次换一个」需另行引入。
+- 极低热量目标时菜库偏薄（早餐素菜只有 10 道），治本要补一批**小份菜**。
+
+## 分支
+
+| 分支 | 说明 |
+|---|---|
+| `v1` | **日常在这里干活**。clone 完记得 `git checkout v1` |
+| `master` | 冻结的已验证基线，新改动一律不直接落上面 |
 
 ## M5（远期，未做）
 
 uni-app 编译微信小程序：`npm run dev:mp-weixin`，开发者工具导入 `dist/dev/mp-weixin`，勾选「不校验合法域名」联调 localhost。上线需 HTTPS 备案域名。
+
