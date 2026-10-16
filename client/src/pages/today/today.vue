@@ -3,6 +3,7 @@
     <!-- 首次加载骨架 -->
     <view v-if="showSkeleton" class="state-box">
       <view class="skeleton skel-hero"></view>
+      <view class="skeleton skel-ring"></view>
       <view class="skeleton skel-row"></view>
       <view class="skeleton skel-row"></view>
     </view>
@@ -30,62 +31,70 @@
 
     <!-- 完整态 -->
     <view v-else-if="today">
-      <!-- 顶部大数字 -->
-      <view class="card hero">
-        <text class="hero__caption">今日目标热量</text>
-        <view class="hero__row">
-          <text class="hero__kcal">{{ today.target?.kcal ?? 0 }}</text>
+      <!-- ============ 顶部：今日目标 + 三餐分段条 ============ -->
+      <!-- 原来「各餐目标」是一张独立的卡，紧接着下面又是三餐卡片，
+           同一个信息连着出现两遍。这里把它折成一条分段条，重复消失、层级也清楚了。 -->
+      <view class="hero" :style="reveal(0)">
+        <text class="hero__eyebrow">今日目标热量</text>
+
+        <view class="hero__figure">
+          <text class="hero__kcal">{{ kcalShown }}</text>
           <text class="hero__unit">kcal</text>
         </view>
-        <text class="hero__hint">TDEE {{ today.tdee }} − 缺口 {{ today.deficitKcal }}</text>
+
+        <text class="hero__formula">
+          TDEE {{ today.tdee }} <text class="hero__op">−</text> 缺口 {{ today.deficitKcal }}
+        </text>
+
+        <!-- 三餐分段：宽度 = 该餐占全天目标的比重，一眼看出分配形状 -->
+        <view class="split">
+          <view
+            v-for="(seg, i) in mealSplit"
+            :key="seg.type"
+            class="split__seg"
+            :class="`split__seg--${seg.type}`"
+            :style="{ flexGrow: seg.share, animationDelay: `${420 + i * 90}ms` }"
+          >
+            <text class="split__label">{{ seg.label }}</text>
+            <text class="split__kcal">{{ seg.kcal }}</text>
+          </view>
+        </view>
       </view>
 
-      <!-- 三大宏量圆环 -->
-      <view class="card">
-        <text class="card__title">宏量目标</text>
+      <!-- ============ 宏量圆环 ============ -->
+      <view class="panel" :style="reveal(1)">
+        <view class="panel__head">
+          <text class="panel__title">宏量目标</text>
+          <text class="panel__note">按供热占比</text>
+        </view>
         <view class="rings">
           <MacroRing
-            v-for="ring in macroRings"
+            v-for="(ring, i) in macroRings"
             :key="ring.key"
             :label="ring.label"
             :value="ring.value"
             :percent="ring.percent"
             :color="ring.color"
+            :track-color="TRACK_COLOR"
+            :delay="i * 110"
           />
         </view>
-        <text class="card__hint">圆环填充比例 = 该宏量占全天总供热的比例</text>
       </view>
 
-      <!-- 关键数字 -->
-      <view class="card">
-        <text class="card__title">身体数据</text>
-        <view class="grid">
-          <view v-for="item in keyNumbers" :key="item.label" class="grid__cell">
-            <text class="grid__value">{{ item.value }}</text>
-            <text class="grid__unit">{{ item.unit }}</text>
-            <text class="grid__label">{{ item.label }}</text>
+      <!-- ============ 身体数据 ============ -->
+      <!-- 不再是又一张白卡：改成发丝线分隔的数字行，弱化成「信息」而不是「又一个模块」 -->
+      <view class="stats" :style="reveal(2)">
+        <view v-for="item in keyNumbers" :key="item.label" class="stat">
+          <text class="stat__label">{{ item.label }}</text>
+          <view class="stat__line">
+            <text class="stat__value">{{ item.value }}</text>
+            <text class="stat__unit">{{ item.unit }}</text>
           </view>
         </view>
-      </view>
-
-      <!-- 各餐目标 -->
-      <view class="card">
-        <text class="card__title">各餐目标</text>
-        <view v-for="meal in today.meals" :key="meal.type" class="meal">
-          <view class="meal__left">
-            <text class="meal__label">{{ meal.label }}</text>
-            <text class="meal__range">{{ meal.kcalMin }} ~ {{ meal.kcalMax }} kcal</text>
-          </view>
-          <view class="meal__right">
-            <text class="meal__kcal">{{ meal.target.kcal }}</text>
-            <text class="meal__kcal-unit">kcal</text>
-          </view>
-        </view>
-        <text class="card__hint">这里是各餐的分配目标，下面是今天实际生成出来的搭配</text>
       </view>
 
       <!-- ============ 今日食谱 ============ -->
-      <view class="section-head">
+      <view class="section-head" :style="reveal(3)">
         <text class="section-head__title">今日食谱</text>
         <text v-if="plan" class="section-head__date">{{ plan.date }}</text>
       </view>
@@ -95,6 +104,7 @@
         v-if="suggestion"
         class="notice"
         :class="suggestion.urgency === 'strong' ? 'notice--strong' : 'notice--soft'"
+        :style="reveal(4)"
       >
         <text class="notice__title">
           {{ suggestion.label }} · {{ suggestion.urgency === 'strong' ? '建议尽快调整' : '小提示' }}
@@ -104,62 +114,56 @@
       </view>
 
       <!-- 降级提示 -->
-      <view v-if="plan && plan.degraded" class="notice notice--warn">
+      <view v-if="plan && plan.degraded" class="notice notice--warn" :style="reveal(4)">
         <text class="notice__title">部分餐次食材组合未完全达标</text>
         <text class="notice__text">{{ degradedMealText }}</text>
       </view>
 
       <!-- 空态：还没生成 -->
-      <view v-else-if="!plan" class="card plan-empty">
+      <view v-else-if="!plan" class="panel plan-empty" :style="reveal(4)">
         <text class="plan-empty__title">今天还没有生成食谱</text>
         <text class="plan-empty__desc">
           按你的每日目标，从 160 多道家常菜里挑一组不重复的搭配，营养全部由后端按克数算。
         </text>
       </view>
 
-      <!-- 已生成：总量 + 各餐 -->
-      <view v-if="plan" class="card">
-        <view class="plan-total">
-          <view class="plan-total__left">
-            <text class="plan-total__caption">全天实际合计</text>
-            <view class="plan-total__row">
-              <text class="plan-total__kcal">{{ plan.total.kcal }}</text>
-              <text class="plan-total__unit">kcal</text>
-            </view>
-            <text class="plan-total__meta">
-              蛋白 {{ plan.total.protein_g }}g · 碳水 {{ plan.total.carb_g }}g · 脂肪 {{ plan.total.fat_g }}g
-            </text>
-          </view>
+      <!-- 已生成：总量 -->
+      <view v-if="plan" class="panel plan-total" :style="reveal(4)">
+        <view class="plan-total__top">
+          <text class="plan-total__caption">全天实际合计</text>
           <text class="plan-total__source">{{ sourceLabel }}</text>
         </view>
+        <view class="plan-total__figure">
+          <text class="plan-total__kcal">{{ plan.total.kcal }}</text>
+          <text class="plan-total__unit">kcal</text>
+        </view>
+        <view class="plan-total__macros">
+          <text class="plan-total__meta">蛋白 {{ plan.total.protein_g }}g</text>
+          <text class="plan-total__meta">碳水 {{ plan.total.carb_g }}g</text>
+          <text class="plan-total__meta">脂肪 {{ plan.total.fat_g }}g</text>
+        </view>
         <view v-if="plan.total.kcal !== today.target?.kcal" class="plan-total__diff">
-          今日目标 {{ today.target?.kcal ?? 0 }} kcal，实际搭配{{ plan.total.kcal > (today.target?.kcal ?? 0) ? '高出' : '低于' }}
+          目标 {{ today.target?.kcal ?? 0 }} kcal，实际{{ plan.total.kcal > (today.target?.kcal ?? 0) ? '高出' : '低于' }}
           {{ Math.abs(plan.total.kcal - (today.target?.kcal ?? 0)) }} kcal
         </view>
       </view>
 
+      <!-- 各餐：卡片依次滑入 -->
       <block v-for="(meal, mealIndex) in plan?.meals ?? []" :key="`${meal.type}-${mealIndex}`">
-        <MealCard
-          :meal="meal"
-          :meal-index="mealIndex"
-          :food-names="foodNames"
-          :is-ai="aiMealTypes.includes(meal.type)"
-          :rerolling="!!rerollingKey"
-          @reroll="onReroll"
-        />
+        <view :style="reveal(5 + mealIndex)">
+          <MealCard
+            :meal="meal"
+            :meal-index="mealIndex"
+            :food-names="foodNames"
+            :is-ai="aiMealTypes.includes(meal.type)"
+            :rerolling="!!rerollingKey"
+            @reroll="onReroll"
+          />
+        </view>
 
         <!-- 每道菜的「AI 换一道」与偏好反馈入口（MealCard 内部不碰接口，入口放在这里） -->
-        <view v-if="meal.dishes.length > 0" class="dish-ops">
-          <view class="dish-ops__head">
-            <text class="dish-ops__title">菜品操作</text>
-            <text class="dish-ops__hint">点「⋯」或长按：AI 换一道 / 喜欢 · 一般 · 不吃</text>
-          </view>
-          <view
-            v-for="(item, dishIndex) in meal.dishes"
-            :key="item.dish.id"
-            class="dish-op"
-            @longpress="openDishMenu(mealIndex, dishIndex)"
-          >
+        <view v-if="meal.dishes.length > 0" class="dish-ops" :style="reveal(6 + mealIndex)">
+          <view v-for="(item, dishIndex) in meal.dishes" :key="item.dish.id" class="dish-op" @longpress="openDishMenu(mealIndex, dishIndex)">
             <text class="dish-op__name">{{ item.dish.name }}</text>
             <text
               v-if="feedbackScore(item.dish.id) !== null"
@@ -176,26 +180,36 @@
         </view>
       </block>
 
-      <view v-if="plan && plan.meals.length === 0" class="card">
-        <text class="card__hint">这份食谱没有餐次数据，可以点下方「重新生成」再来一次。</text>
+      <view v-if="plan && plan.meals.length === 0" class="panel">
+        <text class="panel__note">这份食谱没有餐次数据，可以点下方「重新生成」再来一次。</text>
       </view>
 
       <!-- 生成 / 重新生成 -->
-      <button class="primary-btn" :disabled="!canGenerate || planStore.generating" @click="onGenerate">
-        {{ generateButtonText }}
-      </button>
-      <text class="foot-hint">重新生成会覆盖今天已生成的食谱</text>
+      <view class="cta" :style="reveal(9)">
+        <button
+          class="primary-btn"
+          :class="{ 'primary-btn--busy': planStore.generating }"
+          :disabled="!canGenerate || planStore.generating"
+          @click="onGenerate"
+        >
+          <text class="primary-btn__text">{{ generateButtonText }}</text>
+        </button>
+        <text class="foot-hint">重新生成会覆盖今天已生成的食谱</text>
+      </view>
 
       <view class="footer-space"></view>
     </view>
+
+    <NavBar />
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
 import MacroRing from '../../components/MacroRing.vue'
 import MealCard from '../../components/MealCard.vue'
+import NavBar from '../../components/NavBar.vue'
 import { PLAN_SOURCE_LABELS } from '../../api/plan'
 import { chefErrorNotice, replaceDishWithAi } from '../../api/chef'
 import {
@@ -233,6 +247,91 @@ const rerollingKey = computed(() => planStore.rerollingKey)
 const showSkeleton = computed(() => store.loading && !store.target)
 const showError = computed(() => !store.loading && !store.target && store.error !== '')
 
+// ============================================================
+// 动效
+//
+// 表面保持克制（近白纸面、发丝线、无阴影堆叠），生命力全部交给运动：
+// 入场错峰、数字滚动、圆环扫入、按压缩放。这样才是「简约」而不是「简陋」。
+// ============================================================
+
+/** 圆环轨道色：比进度色淡两档，让进度弧一眼可辨 */
+const TRACK_COLOR = '#EDEAE4'
+
+/** 目标热量是否已拿到 —— 拿到才开始做入场动画，避免空态闪一下 */
+const ready = ref(false)
+
+/**
+ * 错峰入场的 inline style。
+ *
+ * animation 简写连 delay 一起给 —— 只设 animation-delay 的话元素压根不会动
+ * （没有 animation 属性去引用它），这个坑踩过一次。
+ * 用 inline 而不是 nth-child，是让「第几项」跟数据顺序走，不跟 DOM 结构耦合。
+ */
+function reveal(index: number): Record<string, string> {
+  return { animation: `rise 0.62s cubic-bezier(0.16, 1, 0.3, 1) ${index * 70}ms both` }
+}
+
+/**
+ * 数字滚动：从 0 三次缓动到目标值。
+ * 目标值变化（比如换完菜后热量变了）会重新滚一次，而不是硬跳。
+ */
+const kcalShown = ref(0)
+let kcalRaf = 0
+
+function animateKcal(to: number): void {
+  if (typeof requestAnimationFrame !== 'function') {
+    // 非 H5 环境没有 rAF，退化成直接显示
+    kcalShown.value = to
+    return
+  }
+  if (kcalRaf) cancelAnimationFrame(kcalRaf)
+  const from = kcalShown.value
+  if (from === to) return
+  const start = Date.now()
+  const duration = 900
+  const step = (): void => {
+    const p = Math.min(1, (Date.now() - start) / duration)
+    const eased = 1 - Math.pow(1 - p, 3) // easeOutCubic
+    kcalShown.value = Math.round(from + (to - from) * eased)
+    if (p < 1) kcalRaf = requestAnimationFrame(step)
+  }
+  kcalRaf = requestAnimationFrame(step)
+}
+
+watch(
+  () => today.value?.target?.kcal ?? 0,
+  (to) => {
+    if (!ready.value) return
+    animateKcal(to)
+  },
+)
+
+/** 数据一到就开场 */
+watch(
+  () => store.target !== null,
+  (has) => {
+    if (!has) {
+      ready.value = false
+      return
+    }
+    ready.value = true
+    animateKcal(today.value?.target?.kcal ?? 0)
+  },
+  { immediate: true },
+)
+
+/** 三餐分段条的数据：宽度用 share，数值直接给目标热量 */
+const mealSplit = computed(() => {
+  const meals = today.value?.meals ?? []
+  return meals.map((m) => ({
+    type: m.type,
+    label: m.label,
+    kcal: m.target.kcal,
+    // share 是 0~1 的小数，flexGrow 用它；极端情况下兜底 0.1 防整段消失
+    share: Math.max(0.1, m.share),
+  }))
+})
+
 /** 档案 + 体重齐了才谈得上生成食谱 */
 const canGenerate = computed(() => store.isReady)
 const generateButtonText = computed(() => {
@@ -262,9 +361,9 @@ const macroRings = computed(() => {
   }
   const sum = kcalOf.protein + kcalOf.carb + kcalOf.fat || 1
   return [
-    { key: 'protein', label: '蛋白质', value: Math.round(target.protein_g), percent: kcalOf.protein / sum, color: '#4c8bf5' },
-    { key: 'carb', label: '碳水', value: Math.round(target.carb_g), percent: kcalOf.carb / sum, color: '#f0a020' },
-    { key: 'fat', label: '脂肪', value: Math.round(target.fat_g), percent: kcalOf.fat / sum, color: '#2fb98a' },
+    { key: 'protein', label: '蛋白质', value: Math.round(target.protein_g), percent: kcalOf.protein / sum, color: '#FF5B34' },
+    { key: 'carb', label: '碳水', value: Math.round(target.carb_g), percent: kcalOf.carb / sum, color: '#E8A33D' },
+    { key: 'fat', label: '脂肪', value: Math.round(target.fat_g), percent: kcalOf.fat / sum, color: '#2E6E62' },
   ]
 })
 
@@ -484,448 +583,644 @@ function onFeedback(dishId: string, dishName: string, score: FeedbackScore): voi
 </script>
 
 <style scoped lang="scss">
+/* ============================================================
+   设计系统：克制的纸面 + 旺盛的动效
+   ------------------------------------------------------------
+   取向是「编辑排版」而不是「SaaS 仪表盘」：近白的暖纸面、发丝线分隔、
+   几乎不用阴影，靠字号与留白分层。唯一的强调色是朱红（#FF5B34），
+   只用在「数字」和「可点」的地方 —— 颜色稀缺，所以每一次出现都有分量。
+
+   动效全部集中在两处：入场错峰（rise）与数字滚动。表面安静，
+   动起来才有生命力；满屏乱动反而廉价。
+   ============================================================ */
+
 .page {
-  padding: 24rpx;
+  /* 设计令牌在 App.vue 的 page 上统一定义，这里直接继承 */
+  min-height: 100vh;
+  background-color: var(--canvas);
+  padding: 28rpx 28rpx 0;
 }
 
-/* ---------- 卡片 ---------- */
-.card {
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  padding: 28rpx;
-  margin-bottom: 24rpx;
+/* ---------- 宽屏：收成手机宽度的内容列 ---------- */
+/* 桌面浏览器上不收窄的话，一屏铺满会把手机的排版节奏彻底打散。
+   16px 根字号下 30rem = 480px，正好是常见手机的内容宽度。 */
+/* #ifdef H5 */
+@media screen and (min-width: 768px) {
+  .page {
+    max-width: 30rem;
+    margin: 0 auto;
+    box-shadow:
+      0 0 0 1px rgba(22, 23, 28, 0.04),
+      0 30px 70px -28px rgba(22, 23, 28, 0.22);
+  }
+}
+/* #endif */
+
+/* ---------- 入场：错峰上浮 ---------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(24rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.card__title {
-  display: block;
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 20rpx;
-}
-
-.card__hint {
-  display: block;
-  margin-top: 16rpx;
-  font-size: 22rpx;
-  color: #9aa0aa;
-}
-
-/* ---------- 顶部大数字 ---------- */
+/* ============================================================
+   顶部：今日目标
+   ============================================================ */
 .hero {
-  background-color: #2c3e50;
+  position: relative;
+  overflow: hidden;
+  background-color: #16171c;
+  /* 斜向微光，给纯色块一点空气感，不引入图片 */
+  background-image: linear-gradient(148deg, #24262e 0%, #16171c 52%, #121317 100%);
+  border-radius: 8rpx;
+  padding: 48rpx 40rpx 36rpx;
+  margin-bottom: 40rpx;
 }
 
-.hero__caption {
+.hero__eyebrow {
   display: block;
-  font-size: 24rpx;
-  color: #b8c2cf;
+  font-size: 22rpx;
+  letter-spacing: 4rpx;
+  color: rgba(255, 255, 255, 0.42);
+  margin-bottom: 10rpx;
 }
 
-.hero__row {
+.hero__figure {
   display: flex;
   align-items: baseline;
-  margin-top: 8rpx;
 }
 
 .hero__kcal {
-  font-size: 96rpx;
-  font-weight: 700;
+  /* 等宽数字：数字滚动时不左右抖动 */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  font-size: 132rpx;
+  font-weight: 200;
+  letter-spacing: -6rpx;
   color: #ffffff;
-  line-height: 1.1;
+  line-height: 1;
 }
 
 .hero__unit {
-  margin-left: 12rpx;
-  font-size: 30rpx;
-  color: #d5dbe4;
+  margin-left: 16rpx;
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.hero__hint {
+.hero__formula {
   display: block;
-  margin-top: 10rpx;
+  margin-top: 16rpx;
   font-size: 24rpx;
-  color: #9fb0c4;
+  color: rgba(255, 255, 255, 0.45);
 }
 
-/* ---------- 圆环 ---------- */
+.hero__op {
+  padding: 0 6rpx;
+  color: var(--accent);
+}
+
+/* ---------- 三餐分段条 ---------- */
+/* 原先「各餐目标」是一整张卡，下面紧接着又是三餐卡片，同一信息连出两遍。
+   折成一条按比例分配的横条：重复没了，分配形状反而一眼可见。 */
+.split {
+  display: flex;
+  margin-top: 36rpx;
+  border-radius: 6rpx;
+  overflow: hidden;
+}
+
+.split__seg {
+  flex-basis: 0;
+  min-width: 0;
+  padding: 16rpx 4rpx 18rpx;
+  text-align: center;
+  transform-origin: bottom;
+  animation: segGrow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes segGrow {
+  from {
+    transform: scaleY(0.2);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* 三段用同一色相的明度差区分：更像一套系统，而不是三张贴纸 */
+.split__seg--breakfast {
+  background-color: #4a4d57;
+}
+.split__seg--lunch {
+  background-color: #61646f;
+}
+.split__seg--dinner {
+  background-color: #7c7f8a;
+}
+
+.split__label {
+  display: block;
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 4rpx;
+}
+
+.split__kcal {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* ============================================================
+   面板：白底、方正圆角、几乎不用阴影
+   ============================================================ */
+.panel {
+  background-color: var(--surface);
+  border: 2rpx solid var(--hairline);
+  border-radius: 8rpx;
+  padding: 32rpx;
+  margin-bottom: 32rpx;
+}
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28rpx;
+}
+
+.panel__title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 1rpx;
+}
+
+.panel__note {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+/* ---------- 宏量圆环 ---------- */
 .rings {
   display: flex;
-  flex-direction: row;
-  justify-content: space-around;
-  align-items: center;
-}
-
-/* ---------- 数字网格 ---------- */
-.grid {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-}
-
-.grid__cell {
-  width: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 16rpx 0;
-}
-
-.grid__value {
-  font-size: 40rpx;
-  font-weight: 700;
-  color: #2c3e50;
-}
-
-.grid__unit {
-  font-size: 20rpx;
-  color: #9aa0aa;
-  margin-top: 2rpx;
-}
-
-.grid__label {
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #8a8f99;
-}
-
-/* ---------- 各餐 ---------- */
-.meal {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
   justify-content: space-between;
-  padding: 20rpx 0;
-  border-bottom: 2rpx solid #f0f2f5;
-}
-
-.meal__left {
-  display: flex;
-  flex-direction: column;
-}
-
-.meal__label {
-  font-size: 28rpx;
-  color: #2c3e50;
-  font-weight: 600;
-}
-
-.meal__range {
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #9aa0aa;
-}
-
-.meal__right {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-}
-
-.meal__kcal {
-  font-size: 36rpx;
-  font-weight: 700;
-  color: #2c3e50;
-}
-
-.meal__kcal-unit {
-  font-size: 20rpx;
-  color: #9aa0aa;
-  margin-left: 6rpx;
-}
-
-/* ---------- 空态 / 错误态 ---------- */
-.state-box {
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  padding: 64rpx 40rpx;
-  display: flex;
-  flex-direction: column;
   align-items: center;
 }
 
-.state-title {
-  font-size: 34rpx;
-  font-weight: 600;
-  color: #2c3e50;
+/* ---------- 身体数据：发丝线分隔的数字行 ---------- */
+/* 不再是「又一张白卡」。数字横排、用发丝线切分，
+   弱化成信息层，让上面的圆环和下面的食谱成为真正的主角。 */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  background-color: var(--surface);
+  border: 2rpx solid var(--hairline);
+  border-radius: 8rpx;
+  padding: 8rpx 0;
+  margin-bottom: 40rpx;
+}
+
+.stat {
+  position: relative;
+  width: 33.333%;
+  padding: 26rpx 12rpx 28rpx;
   text-align: center;
 }
 
-.state-desc {
-  margin-top: 16rpx;
-  font-size: 26rpx;
-  color: #8a8f99;
-  text-align: center;
-  line-height: 1.6;
+/* 竖发丝线：用伪元素画，避免每个格子再包一层 view */
+.stat:not(:nth-child(3n + 1))::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 2rpx;
+  background-color: var(--hairline);
 }
 
-.primary-btn {
-  margin-top: 36rpx;
-  background-color: #2c3e50;
-  color: #ffffff;
-  font-size: 30rpx;
-  border-radius: 44rpx;
-  padding: 0 56rpx;
-  line-height: 2.4;
+.stat__label {
+  display: block;
+  font-size: 20rpx;
+  color: var(--ink-3);
+  letter-spacing: 1rpx;
+  margin-bottom: 10rpx;
 }
 
-.primary-btn[disabled] {
-  opacity: 0.6;
+.stat__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
 }
 
-/* ---------- 区块标题 ---------- */
+.stat__value {
+  font-variant-numeric: tabular-nums;
+  font-size: 40rpx;
+  font-weight: 300;
+  color: var(--ink);
+  letter-spacing: -1rpx;
+}
+
+.stat__unit {
+  margin-left: 6rpx;
+  font-size: 20rpx;
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   区块标题
+   ============================================================ */
 .section-head {
   display: flex;
-  flex-direction: row;
   align-items: baseline;
   justify-content: space-between;
-  margin: 8rpx 8rpx 16rpx;
+  margin: 8rpx 4rpx 24rpx;
 }
 
 .section-head__title {
-  font-size: 32rpx;
+  font-size: 30rpx;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--ink);
+  letter-spacing: 2rpx;
 }
 
 .section-head__date {
-  font-size: 24rpx;
-  color: #9aa0aa;
+  font-variant-numeric: tabular-nums;
+  font-size: 22rpx;
+  color: var(--ink-3);
 }
 
-/* ---------- 非阻断提示条 ---------- */
+/* ============================================================
+   提示条
+   ============================================================ */
 .notice {
-  border-radius: 16rpx;
-  padding: 20rpx 24rpx;
-  margin-bottom: 24rpx;
-}
-
-.notice--soft {
-  background-color: #eaf1fd;
-}
-
-.notice--strong {
-  background-color: #fdecec;
-  border: 2rpx solid #f0b0a8;
-}
-
-.notice--warn {
-  background-color: #fdf3e6;
+  border: 2rpx solid var(--hairline);
+  border-left-width: 6rpx;
+  border-radius: 6rpx;
+  background-color: var(--surface);
+  padding: 26rpx 28rpx;
+  margin-bottom: 28rpx;
 }
 
 .notice__title {
   display: block;
-  font-size: 26rpx;
+  font-size: 25rpx;
   font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 8rpx;
-}
-
-.notice--strong .notice__title {
-  color: #c0392b;
+  color: var(--ink);
+  margin-bottom: 10rpx;
 }
 
 .notice__text {
   display: block;
   font-size: 24rpx;
-  color: #4b5563;
   line-height: 1.6;
+  color: var(--ink-2);
 }
 
 .notice__extra {
   display: block;
-  margin-top: 8rpx;
-  font-size: 20rpx;
-  color: #9aa0aa;
+  margin-top: 10rpx;
+  font-size: 21rpx;
+  color: var(--ink-3);
 }
 
-/* ---------- 食谱空态 ---------- */
-.plan-empty {
+.notice--soft {
+  border-left-color: #d8d4cc;
+}
+
+.notice--strong {
+  border-left-color: var(--accent);
+}
+
+.notice--warn {
+  border-left-color: #e8a33d;
+}
+
+/* ============================================================
+   全天合计
+   ============================================================ */
+.plan-total__top {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 48rpx 32rpx;
-}
-
-.plan-empty__title {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.plan-empty__desc {
-  margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #8a8f99;
-  text-align: center;
-  line-height: 1.6;
-}
-
-/* ---------- 全天合计 ---------- */
-.plan-total {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
 }
 
-.plan-total__left {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
 .plan-total__caption {
-  font-size: 24rpx;
-  color: #9aa0aa;
-}
-
-.plan-total__row {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  margin-top: 4rpx;
-}
-
-.plan-total__kcal {
-  font-size: 56rpx;
-  font-weight: 700;
-  color: #2c3e50;
-}
-
-.plan-total__unit {
-  font-size: 24rpx;
-  color: #9aa0aa;
-  margin-left: 10rpx;
-}
-
-.plan-total__meta {
-  margin-top: 6rpx;
   font-size: 22rpx;
-  color: #6b7280;
+  color: var(--ink-3);
+  letter-spacing: 1rpx;
 }
 
 .plan-total__source {
-  font-size: 22rpx;
-  color: #6b7280;
-  background-color: #f5f6f8;
-  border-radius: 10rpx;
+  font-size: 20rpx;
+  color: var(--ink-3);
   padding: 4rpx 14rpx;
-  margin-left: 16rpx;
+  border: 2rpx solid var(--hairline);
+  border-radius: 100rpx;
+}
+
+.plan-total__figure {
+  display: flex;
+  align-items: baseline;
+  margin: 14rpx 0 16rpx;
+}
+
+.plan-total__kcal {
+  font-variant-numeric: tabular-nums;
+  font-size: 76rpx;
+  font-weight: 300;
+  letter-spacing: -3rpx;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.plan-total__unit {
+  margin-left: 12rpx;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.plan-total__macros {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.plan-total__meta {
+  font-variant-numeric: tabular-nums;
+  font-size: 22rpx;
+  color: var(--ink-2);
+  margin-right: 28rpx;
 }
 
 .plan-total__diff {
-  margin-top: 14rpx;
-  padding-top: 12rpx;
-  border-top: 2rpx solid #f0f2f5;
+  margin-top: 22rpx;
+  padding-top: 20rpx;
+  border-top: 2rpx solid var(--hairline);
   font-size: 22rpx;
-  color: #9aa0aa;
+  color: var(--ink-3);
 }
 
-.foot-hint {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 22rpx;
-  color: #9aa0aa;
-  text-align: center;
-}
-
-/* ---------- 菜品操作条（AI 换一道 / 偏好反馈） ---------- */
+/* ============================================================
+   菜品操作条
+   ============================================================ */
 .dish-ops {
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  padding: 20rpx 24rpx;
-  margin-top: -12rpx;
-  margin-bottom: 24rpx;
-}
-
-.dish-ops__head {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  margin-bottom: 8rpx;
-}
-
-.dish-ops__title {
-  font-size: 24rpx;
-  color: #9aa0aa;
-  margin-right: 16rpx;
-}
-
-.dish-ops__hint {
-  font-size: 20rpx;
-  color: #b8bdc6;
-  flex: 1;
+  margin: -12rpx 0 28rpx;
+  padding: 0 8rpx;
 }
 
 .dish-op {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  padding: 12rpx 0;
-  border-top: 2rpx solid #f0f2f5;
+  padding: 18rpx 20rpx;
+  border-bottom: 2rpx solid var(--hairline);
+  /* 按压反馈：整行可点，得有触感 */
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.dish-op:active {
+  background-color: var(--accent-wash);
+  transform: scale(0.985);
 }
 
 .dish-op__name {
-  font-size: 24rpx;
-  color: #4b5563;
   flex: 1;
+  font-size: 24rpx;
+  color: var(--ink-2);
 }
 
 .dish-op__badge {
-  font-size: 20rpx;
-  border-radius: 8rpx;
-  padding: 2rpx 12rpx;
-  margin-right: 12rpx;
+  margin-right: 14rpx;
+  font-size: 19rpx;
+  padding: 3rpx 12rpx;
+  border-radius: 100rpx;
   color: #ffffff;
-  background-color: #9aa0aa;
 }
 
 .dish-op__badge--like {
-  background-color: #2fb98a;
+  background-color: #2e6e62;
 }
 
 .dish-op__badge--normal {
-  background-color: #9aa0aa;
+  background-color: #b8b3aa;
 }
 
 .dish-op__badge--dislike {
-  background-color: #e0664c;
+  background-color: #c9553f;
 }
 
 .dish-op__busy {
+  margin-right: 14rpx;
   font-size: 20rpx;
-  color: #7b61ff;
-  margin-right: 12rpx;
+  color: var(--accent);
+}
+
+/* 呼吸感：AI 换菜时这个点轻轻脉动 */
+.dish-op__busy,
+.dish-op__btn--busy {
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .dish-op__btn {
+  width: 56rpx;
+  height: 56rpx;
+  line-height: 52rpx;
+  text-align: center;
   font-size: 32rpx;
-  color: #4c8bf5;
-  padding: 0 12rpx;
-  line-height: 1.2;
+  color: var(--ink-3);
+  border: 2rpx solid var(--hairline);
+  border-radius: 100rpx;
+  transition: all 0.18s ease;
 }
 
-.dish-op__btn--busy {
-  color: #b8bdc6;
+.dish-op__btn:active {
+  background-color: var(--ink);
+  color: #ffffff;
+  border-color: var(--ink);
 }
 
-/* ---------- 骨架屏 ---------- */
+/* ============================================================
+   CTA
+   ============================================================ */
+.cta {
+  margin-top: 16rpx;
+}
+
+/* uni 的 button 有默认边框和背景，必须全部清掉才画得干净 */
+.primary-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 96rpx;
+  line-height: 96rpx;
+  padding: 0;
+  background-color: var(--ink);
+  border: none;
+  border-radius: 8rpx;
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+}
+
+.primary-btn::after {
+  border: none;
+}
+
+.primary-btn:active {
+  transform: scale(0.975);
+  opacity: 0.92;
+}
+
+.primary-btn--busy {
+  opacity: 0.6;
+}
+
+.primary-btn[disabled] {
+  background-color: #d4d0c9;
+  color: #ffffff;
+}
+
+.primary-btn__text {
+  font-size: 30rpx;
+  font-weight: 500;
+  letter-spacing: 3rpx;
+  color: #ffffff;
+}
+
+.foot-hint {
+  display: block;
+  margin-top: 18rpx;
+  text-align: center;
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+.plan-empty__title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 14rpx;
+}
+
+.plan-empty__desc {
+  display: block;
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+/* ============================================================
+   骨架屏 / 空态 / 错误态
+   ============================================================ */
+.state-box {
+  padding: 80rpx 20rpx;
+  text-align: center;
+}
+
+.state-title {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 16rpx;
+}
+
+.state-desc {
+  display: block;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: var(--ink-2);
+  margin-bottom: 48rpx;
+}
+
+/* 骨架：一条光带扫过，比单纯灰块「有生命」 */
 .skeleton {
-  background-color: #e9edf3;
-  border-radius: 16rpx;
-  margin-bottom: 24rpx;
+  position: relative;
+  overflow: hidden;
+  background-color: #eceae5;
+  border-radius: 8rpx;
+  margin-bottom: 32rpx;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 60%;
+  height: 100%;
+  background-image: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    left: -60%;
+  }
+  to {
+    left: 120%;
+  }
 }
 
 .skel-hero {
-  height: 220rpx;
+  height: 320rpx;
+}
+
+.skel-ring {
+  height: 260rpx;
 }
 
 .skel-row {
+  height: 120rpx;
+}
+
+/* 给悬浮导航留出空间：导航条 104rpx + 底部留白 20rpx + 安全区 */
+.footer-space {
   height: 160rpx;
 }
 
-.footer-space {
-  height: 40rpx;
+/* ============================================================
+   无障碍：尊重「减少动态效果」的系统设置
+   ------------------------------------------------------------
+   前庭功能障碍者对大幅位移/持续动画会不适。系统开了这个开关就全部关掉，
+   只保留最终状态 —— 内容一点不少。
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .split__seg,
+  .skeleton::after,
+  .dish-op__busy,
+  .dish-op__btn--busy {
+    animation: none !important;
+  }
+
+  .primary-btn,
+  .dish-op,
+  .dish-op__btn {
+    transition: none !important;
+  }
 }
 </style>

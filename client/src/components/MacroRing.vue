@@ -22,7 +22,7 @@
  * canvas 的 API 在 H5 与小程序都是 uni 官方统一封装，跨端最稳。
  * 中心数字用普通 view 叠在 canvas 上，排版比 canvas 画字更好控制。
  */
-import { computed, getCurrentInstance, nextTick, onMounted, watch } from 'vue'
+import { computed, getCurrentInstance, nextTick, onMounted, onUnmounted, watch } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -40,13 +40,16 @@ const props = withDefaults(
     size?: number
     /** 小数位 */
     precision?: number
+    /** 入场延迟 ms，让三个环错开扫入而不是齐刷刷一起动 */
+    delay?: number
   }>(),
   {
     percent: 0,
-    color: '#4c8bf5',
-    trackColor: '#e9edf3',
+    color: '#FF5B34',
+    trackColor: '#EDEAE4',
     size: 132,
     precision: 0,
+    delay: 0,
   },
 )
 
@@ -71,7 +74,7 @@ const ringStyle = computed(() => {
 const displayValue = computed(() => props.value.toFixed(props.precision))
 
 /** 画轨道圆 + 进度弧（从 12 点方向顺时针） */
-function draw(): void {
+function draw(sweepFrom = 0, sweepTo = 1): void {
   const size = props.size
   const lineWidth = Math.max(6, Math.round(size * 0.11))
   const radius = (size - lineWidth) / 2
@@ -91,10 +94,11 @@ function draw(): void {
   ctx.setLineWidth(lineWidth)
   ctx.stroke()
 
-  // 进度弧
-  if (percent > 0.001) {
+  // 进度弧：sweepFrom/sweepTo 用于入场扫入动画
+  const drawn = percent * (sweepTo - sweepFrom)
+  if (drawn > 0.001) {
     ctx.beginPath()
-    ctx.arc(cx, cy, radius, start, start + Math.PI * 2 * percent, false)
+    ctx.arc(cx, cy, radius, start + Math.PI * 2 * sweepFrom, start + Math.PI * 2 * (sweepFrom + drawn), false)
     ctx.setStrokeStyle(props.color)
     ctx.setLineWidth(lineWidth)
     ctx.stroke()
@@ -103,12 +107,60 @@ function draw(): void {
   ctx.draw()
 }
 
-function redraw(): void {
-  void nextTick(() => draw())
+/** 画静态的一帧（无动画环境、或用户要求减少动效时用） */
+function drawStatic(): void {
+  draw(0, 1)
 }
 
-onMounted(redraw)
-watch(() => [props.percent, props.color, props.size], redraw)
+/** 入场：从 0 扫到目标比例 */
+function drawAnimated(): void {
+  const duration = 900
+  const hasRaf = typeof requestAnimationFrame === 'function'
+  if (!hasRaf || prefersReducedMotion()) {
+    drawStatic()
+    return
+  }
+  let raf = 0
+  const start = Date.now()
+  const step = (): void => {
+    const p = Math.min(1, (Date.now() - start) / duration)
+    const eased = 1 - Math.pow(1 - p, 3) // easeOutCubic
+    draw(0, eased)
+    if (p < 1) raf = requestAnimationFrame(step)
+  }
+  raf = requestAnimationFrame(step)
+  // 组件被卸载时别再画，避免往已销毁的 canvas 上写
+  onUnmounted(() => cancelAnimationFrame(raf))
+}
+
+/** 系统开了「减少动态效果」就别扫了 */
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 数据/配色变化时重画。
+ *
+ * ⚠️ 只有「首次入场」才播扫入动画；之后 percent 变了（比如重新生成食谱后宏量比例变了）
+ * 直接跳到新值 —— 每次改动都扫一遍会让人眼花，也拖慢交互反馈。
+ */
+function redraw(animate: boolean): void {
+  void nextTick(() => {
+    if (animate) {
+      setTimeout(drawAnimated, props.delay)
+      return
+    }
+    drawStatic()
+  })
+}
+
+onMounted(() => redraw(true))
+watch(() => [props.percent, props.color, props.size], () => redraw(false))
 </script>
 
 <style scoped lang="scss">

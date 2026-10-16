@@ -73,6 +73,8 @@
     </view>
 
     <view class="footer-space"></view>
+
+    <NavBar />
   </view>
 </template>
 
@@ -85,6 +87,7 @@
  */
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import NavBar from '../../components/NavBar.vue'
 import { usePlanStore } from '../../stores/plan'
 
 const planStore = usePlanStore()
@@ -135,255 +138,329 @@ onShow(() => {
 </script>
 
 <style scoped lang="scss">
+/* 历史页：与今日页同一套语言（令牌来自 App.vue）。
+   结构没动，只换皮肤 + 给列表加错峰入场 —— 交互逻辑本身是好的，
+   没必要为了「重构」把它推翻。 */
+
 .page {
-  padding: 24rpx;
+  min-height: 100vh;
+  background-color: var(--canvas);
+  padding: 28rpx 28rpx 0;
 }
 
-/* ---------- 卡片 / 行 ---------- */
-.card {
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
+/* #ifdef H5 */
+@media screen and (min-width: 768px) {
+  .page {
+    max-width: 30rem;
+    margin: 0 auto;
+    box-shadow:
+      0 0 0 1px rgba(22, 23, 28, 0.04),
+      0 30px 70px -28px rgba(22, 23, 28, 0.22);
+  }
+}
+/* #endif */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(24rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.row__left {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.row__title-line {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
-
-.row__date {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.row__weekday {
-  font-size: 24rpx;
-  color: #9aa0aa;
-  margin-left: 12rpx;
-}
-
-.row__meta {
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #6b7280;
-}
-
-.row__right {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  margin-left: 16rpx;
-}
-
-.row__kcal {
-  font-size: 36rpx;
-  font-weight: 700;
-  color: #2c3e50;
-}
-
-.row__kcal-unit {
-  font-size: 20rpx;
-  color: #9aa0aa;
-  margin-left: 6rpx;
-}
-
-.row__arrow {
-  font-size: 26rpx;
-  color: #9aa0aa;
-  margin-left: 16rpx;
-}
-
-/* ---------- 详情 ---------- */
-.detail {
-  margin-top: 20rpx;
-  padding-top: 16rpx;
-  border-top: 2rpx solid #f0f2f5;
-}
-
-.detail__notice {
-  background-color: #fdf3e6;
-  border-radius: 10rpx;
-  padding: 12rpx 16rpx;
-  margin-bottom: 16rpx;
-}
-
-.detail__notice-text {
-  font-size: 22rpx;
-  color: #b4701f;
-}
-
-.detail__meal {
-  padding: 12rpx 0;
-}
-
-.detail__meal-head {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.detail__meal-name {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #2c3e50;
-  margin-right: 12rpx;
-}
-
-.detail__meal-kcal {
-  font-size: 22rpx;
-  color: #6b7280;
-  margin-right: 12rpx;
-}
-
-.detail__dish {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 8rpx 0 8rpx 16rpx;
-}
-
-.detail__dish-name {
-  font-size: 24rpx;
-  color: #4b5563;
-  flex: 1;
-}
-
-.detail__dish-kcal {
-  font-size: 22rpx;
-  color: #9aa0aa;
-  margin-left: 16rpx;
-}
-
-.detail__empty {
-  font-size: 22rpx;
-  color: #b8bdc6;
-  padding-left: 16rpx;
-}
-
-.detail__foot {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 20rpx;
-  color: #b8bdc6;
-}
-
-/* ---------- 标记 ---------- */
-.tag {
-  font-size: 20rpx;
-  border-radius: 8rpx;
-  padding: 2rpx 10rpx;
-  color: #ffffff;
-  background-color: #9aa0aa;
-}
-
-.tag--ok {
-  background-color: #2fb98a;
-}
-
-.tag--warn {
-  background-color: #e08a2b;
-}
-
-/* ---------- 加载更多 ---------- */
-.more {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 24rpx;
-}
-
-.more-btn {
-  background-color: #ffffff;
-  color: #2c3e50;
-  font-size: 26rpx;
-  border-radius: 36rpx;
-  padding: 0 56rpx;
-  line-height: 2.4;
-}
-
-.more__text {
-  font-size: 22rpx;
-  color: #b8bdc6;
-}
-
-/* ---------- 横幅 / 空态 ---------- */
+/* ---------- 错误条 ---------- */
 .banner {
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  background-color: #fdecec;
-  border-radius: 16rpx;
-  padding: 20rpx 24rpx;
+  border: 2rpx solid var(--hairline);
+  border-left: 6rpx solid #c9553f;
+  border-radius: 6rpx;
+  background-color: var(--surface);
+  padding: 24rpx 26rpx;
   margin-bottom: 24rpx;
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .banner__text {
   flex: 1;
   font-size: 24rpx;
-  color: #c0392b;
+  line-height: 1.5;
+  color: var(--ink-2);
 }
 
 .banner__retry {
+  margin-left: 20rpx;
   font-size: 24rpx;
-  color: #c0392b;
+  color: var(--accent);
   font-weight: 600;
-  padding-left: 24rpx;
 }
 
-.state-box {
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  padding: 64rpx 40rpx;
+/* ---------- 卡片 ---------- */
+.card {
+  background-color: var(--surface);
+  border: 2rpx solid var(--hairline);
+  border-radius: 8rpx;
+  margin-bottom: 20rpx;
+  /* 展开时内容会变高，让高度过渡平滑 */
+  overflow: hidden;
+  animation: rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.row {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: space-between;
+  padding: 30rpx 28rpx;
+  transition: background-color 0.18s ease;
+}
+
+.row:active {
+  background-color: var(--accent-wash);
+}
+
+.row__left {
+  flex: 1;
+  min-width: 0;
+  padding-right: 20rpx;
+}
+
+.row__title-line {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10rpx;
+}
+
+.row__date {
+  font-variant-numeric: tabular-nums;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 1rpx;
+}
+
+.row__weekday {
+  margin-left: 14rpx;
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.row__meta {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+.row__right {
+  display: flex;
+  align-items: baseline;
+}
+
+.row__kcal {
+  font-variant-numeric: tabular-nums;
+  font-size: 38rpx;
+  font-weight: 300;
+  color: var(--ink);
+  letter-spacing: -1rpx;
+}
+
+.row__kcal-unit {
+  margin-left: 6rpx;
+  font-size: 20rpx;
+  color: var(--ink-3);
+}
+
+.row__arrow {
+  margin-left: 18rpx;
+  width: 36rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+/* ---------- 展开详情 ---------- */
+.detail {
+  border-top: 2rpx solid var(--hairline);
+  padding: 8rpx 28rpx 24rpx;
+}
+
+.detail__notice {
+  margin: 20rpx 0 8rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 6rpx;
+  background-color: rgba(232, 163, 61, 0.1);
+}
+
+.detail__notice-text {
+  font-size: 22rpx;
+  color: #9a6b18;
+}
+
+.detail__meal {
+  padding: 20rpx 0;
+  border-bottom: 2rpx solid var(--hairline);
+}
+
+.detail__meal:last-of-type {
+  border-bottom: none;
+}
+
+.detail__meal-head {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 14rpx;
+}
+
+.detail__meal-name {
+  font-size: 25rpx;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.detail__meal-kcal {
+  font-variant-numeric: tabular-nums;
+  margin-left: 16rpx;
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+.detail__dish {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9rpx 0 9rpx 20rpx;
+}
+
+.detail__dish-name {
+  font-size: 24rpx;
+  color: var(--ink-2);
+}
+
+.detail__dish-kcal {
+  font-variant-numeric: tabular-nums;
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+.detail__empty,
+.detail__foot {
+  display: block;
+  padding: 16rpx 0 0 20rpx;
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+/* ---------- 标签 ---------- */
+.tag {
+  margin-left: 14rpx;
+  font-size: 19rpx;
+  padding: 3rpx 12rpx;
+  border-radius: 100rpx;
+}
+
+.tag--ok {
+  background-color: rgba(46, 110, 98, 0.12);
+  color: var(--teal);
+}
+
+.tag--warn {
+  background-color: rgba(232, 163, 61, 0.14);
+  color: #9a6b18;
+}
+
+/* ---------- 加载更多 ---------- */
+.more {
+  padding: 20rpx 0 0;
+  text-align: center;
+}
+
+.more-btn {
+  display: inline-block;
+  height: 80rpx;
+  line-height: 80rpx;
+  padding: 0 56rpx;
+  font-size: 26rpx;
+  color: var(--ink-2);
+  background-color: var(--surface);
+  border: 2rpx solid var(--hairline);
+  border-radius: 100rpx;
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.more-btn::after {
+  border: none;
+}
+
+.more-btn:active {
+  transform: scale(0.96);
+}
+
+.more__text {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+/* ---------- 空态 ---------- */
+.state-box {
+  padding: 110rpx 20rpx;
+  text-align: center;
 }
 
 .state-title {
-  font-size: 34rpx;
+  display: block;
+  font-size: 32rpx;
   font-weight: 600;
-  color: #2c3e50;
-  text-align: center;
+  color: var(--ink);
+  margin-bottom: 16rpx;
 }
 
 .state-desc {
-  margin-top: 16rpx;
-  font-size: 26rpx;
-  color: #8a8f99;
-  text-align: center;
-  line-height: 1.6;
+  display: block;
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: var(--ink-2);
+  margin-bottom: 44rpx;
 }
 
 .primary-btn {
-  margin-top: 36rpx;
-  background-color: #2c3e50;
-  color: #ffffff;
-  font-size: 30rpx;
-  border-radius: 44rpx;
-  padding: 0 56rpx;
-  line-height: 2.4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 92rpx;
+  padding: 0;
+  background-color: var(--ink);
+  border: none;
+  border-radius: 8rpx;
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.primary-btn::after {
+  border: none;
+}
+
+.primary-btn:active {
+  transform: scale(0.975);
 }
 
 .footer-space {
-  height: 40rpx;
+  /* 给悬浮导航留出空间 */
+  height: 160rpx;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .banner {
+    animation: none !important;
+  }
+
+  .row,
+  .primary-btn,
+  .more-btn {
+    transition: none !important;
+  }
 }
 </style>

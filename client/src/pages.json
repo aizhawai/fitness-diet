@@ -35,7 +35,7 @@
       { "pagePath": "pages/today/today", "text": "今日" },
       { "pagePath": "pages/history/history", "text": "历史" },
       { "pagePath": "pages/chef/chef", "text": "AI厨师" },
-      { "pagePath": "pages/profile/profile", "text": "档案" }
+      { "pagePath": "pages/profile/profile", "text": "我的" }
     ]
   }
 }
