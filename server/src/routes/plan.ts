@@ -11,6 +11,7 @@ import { PlanError, attachStageSuggestion, generatePlan, rerollDish } from '../s
 import { getPlan, listPlans } from '../db/repos/planRepo.js'
 import { listFeedback, setFeedback } from '../db/repos/feedbackRepo.js'
 import { getDishIndex } from '../data/load.js'
+import { requireUser } from '../services/authService.js'
 import type { DishFeedback, FeedbackScore } from '../types.js'
 
 // ---------- 工具 ----------
@@ -90,24 +91,29 @@ export async function feedbackRoutes(
 
   // 记一条评分（覆盖式）
   app.post('/api/feedback', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = feedbackSchema.safeParse(request.body)
     if (!parsed.success) return fail(reply, parsed.error)
 
     const { dishId, score } = parsed.data
-    if (!getDishIndex().has(dishId)) {
+    // dishId 必须在**该用户**的菜谱里（内置 + 他自己收藏的），
+    // 否则就是拿别人的菜 id 来打分
+    if (!getDishIndex(db, userId).has(dishId)) {
       return reply.status(400).send({
         error: `菜谱库里没有这道菜：${dishId}`,
         code: 'UNKNOWN_DISH',
       })
     }
 
-    setFeedback(db, dishId, score)
+    setFeedback(db, userId, dishId, score)
     const feedback: DishFeedback = { dishId, score }
     return { feedback }
   })
 
-  // 全部评分（按 dishId 升序）
-  app.get('/api/feedback', async () => ({ feedback: listFeedback(db) }))
+  // 该用户的全部评分（按 dishId 升序）
+  app.get('/api/feedback', async (request) => ({
+    feedback: listFeedback(db, requireUser(request)),
+  }))
 }
 
 export async function planRoutes(app: FastifyInstance, opts: PlanRoutesOptions): Promise<void> {
@@ -118,21 +124,25 @@ export async function planRoutes(app: FastifyInstance, opts: PlanRoutesOptions):
 
   // 历史页：先注册静态路径，避免被 /api/plan/:date 之类的动态段影响
   app.get('/api/plans', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = listQuerySchema.safeParse(request.query)
     if (!parsed.success) return fail(reply, parsed.error)
 
-    const plans = parsed.data.limit === undefined ? listPlans(db) : listPlans(db, parsed.data.limit)
+    const plans =
+      parsed.data.limit === undefined ? listPlans(db, userId) : listPlans(db, userId, parsed.data.limit)
     return { plans }
   })
 
   // 生成（或覆盖生成）某天计划：档案 → 体重 → 目标 → 组合 → 落库
   app.post('/api/plan/generate', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = generateSchema.safeParse(request.body)
     if (!parsed.success) return fail(reply, parsed.error)
 
     try {
       const plan = await generatePlan(db, {
         db,
+        userId,
         date: parsed.data.date,
         hasTraining: parsed.data.hasTraining,
         useAiFallback: parsed.data.useAiFallback,
@@ -145,6 +155,7 @@ export async function planRoutes(app: FastifyInstance, opts: PlanRoutesOptions):
 
   // 换一道菜
   app.post('/api/plan/:date/reroll-dish', async (request, reply) => {
+    const userId = requireUser(request)
     const parsedParams = dateParamSchema.safeParse(
       (request.params as Record<string, unknown> | undefined)?.['date'],
     )
@@ -156,6 +167,7 @@ export async function planRoutes(app: FastifyInstance, opts: PlanRoutesOptions):
     try {
       const result = rerollDish(
         db,
+        userId,
         parsedParams.data,
         parsedBody.data.mealIndex,
         parsedBody.data.dishIndex,
@@ -172,12 +184,13 @@ export async function planRoutes(app: FastifyInstance, opts: PlanRoutesOptions):
 
   // 查某天计划
   app.get('/api/plan/:date', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = dateParamSchema.safeParse(
       (request.params as Record<string, unknown> | undefined)?.['date'],
     )
     if (!parsed.success) return fail(reply, parsed.error)
 
-    const plan = getPlan(db, parsed.data)
+    const plan = getPlan(db, userId, parsed.data)
     if (plan === null) {
       return reply.status(404).send({
         error: `${parsed.data} 还没有食谱计划，请先生成`,
@@ -185,6 +198,6 @@ export async function planRoutes(app: FastifyInstance, opts: PlanRoutesOptions):
       })
     }
     // suggestion 不落库，读库后现算挂上（体重一变就该变）
-    return { plan: attachStageSuggestion(db, plan) }
+    return { plan: attachStageSuggestion(db, userId, plan) }
   })
 }

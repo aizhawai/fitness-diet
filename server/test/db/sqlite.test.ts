@@ -42,12 +42,14 @@ describe('sqlite 建库建表', () => {
 
   it('四张表各插一行再读回，中文正常存取', () => {
     const db = openDb(':memory:')
+    db.prepare("INSERT INTO users (id, nickname) VALUES ('u1', '甲')").run()
 
     db.prepare(
-      `INSERT INTO profile (id, sex, birthday, height_cm, activity_level, meal_mode,
+      `INSERT INTO profile (user_id, sex, birthday, height_cm, activity_level, meal_mode,
         diet_structure, custom_ratio, deficit_kcal, goal_weight_kg)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
+      'u1',
       'male',
       '1995-03-08',
       175.5,
@@ -58,11 +60,16 @@ describe('sqlite 建库建表', () => {
       500,
       70,
     )
-    db.prepare('INSERT INTO weight_log (date, weight_kg) VALUES (?, ?)').run('2026-10-01', 68.4)
+    db.prepare('INSERT INTO weight_log (user_id, date, weight_kg) VALUES (?, ?, ?)').run(
+      'u1',
+      '2026-10-01',
+      68.4,
+    )
     db.prepare(
-      `INSERT INTO diet_plans (date, total_kcal, protein_g, carb_g, fat_g, meals_json, source)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO diet_plans (user_id, date, total_kcal, protein_g, carb_g, fat_g, meals_json, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
+      'u1',
       '2026-10-01',
       1800,
       130,
@@ -71,9 +78,13 @@ describe('sqlite 建库建表', () => {
       JSON.stringify({ lunch: '鸡胸肉沙拉' }),
       'algo',
     )
-    db.prepare('INSERT INTO dish_feedback (dish_id, score) VALUES (?, ?)').run('dish_001', 1)
+    db.prepare('INSERT INTO dish_feedback (user_id, dish_id, score) VALUES (?, ?, ?)').run(
+      'u1',
+      'dish_001',
+      1,
+    )
 
-    const profile = { ...db.prepare('SELECT * FROM profile WHERE id = 1').get() }
+    const profile = { ...db.prepare('SELECT * FROM profile WHERE user_id = ?').get('u1') }
     expect(profile.sex).toBe('male')
     expect(profile.birthday).toBe('1995-03-08')
     expect(profile.height_cm).toBe(175.5)
@@ -88,10 +99,18 @@ describe('sqlite 建库建表', () => {
     expect(profile.deficit_kcal).toBe(500)
     expect(profile.goal_weight_kg).toBe(70)
 
-    const w = { ...db.prepare('SELECT * FROM weight_log WHERE date = ?').get('2026-10-01') }
+    const w = {
+      ...db
+        .prepare('SELECT * FROM weight_log WHERE user_id = ? AND date = ?')
+        .get('u1', '2026-10-01'),
+    }
     expect(w.weight_kg).toBe(68.4)
 
-    const plan = { ...db.prepare('SELECT * FROM diet_plans WHERE date = ?').get('2026-10-01') }
+    const plan = {
+      ...db
+        .prepare('SELECT * FROM diet_plans WHERE user_id = ? AND date = ?')
+        .get('u1', '2026-10-01'),
+    }
     expect(plan.total_kcal).toBe(1800)
     expect(plan.protein_g).toBe(130)
     expect(plan.carb_g).toBe(180)
@@ -99,63 +118,70 @@ describe('sqlite 建库建表', () => {
     expect(JSON.parse(plan.meals_json as string)).toEqual({ lunch: '鸡胸肉沙拉' })
     expect(plan.source).toBe('algo')
 
-    const fb = { ...db.prepare('SELECT * FROM dish_feedback WHERE dish_id = ?').get('dish_001') }
+    const fb = {
+      ...db
+        .prepare('SELECT * FROM dish_feedback WHERE user_id = ? AND dish_id = ?')
+        .get('u1', 'dish_001'),
+    }
     expect(fb.score).toBe(1)
     expect(typeof fb.updated_at).toBe('string')
 
     db.close()
   })
 
-  it('weight_log 同一天重复插入走 UPSERT，最终只留一行新值', () => {
+  it('weight_log 同一人同一天重复插入走 UPSERT，最终只留一行新值', () => {
     const db = openDb(':memory:')
-    const sql = `INSERT INTO weight_log (date, weight_kg) VALUES (?, ?)
-                 ON CONFLICT(date) DO UPDATE SET weight_kg = excluded.weight_kg`
-    db.prepare(sql).run('2026-10-02', 68.0)
-    db.prepare(sql).run('2026-10-02', 67.6)
+    db.prepare("INSERT INTO users (id, nickname) VALUES ('u1', '甲')").run()
+    const sql = `INSERT INTO weight_log (user_id, date, weight_kg) VALUES (?, ?, ?)
+                 ON CONFLICT(user_id, date) DO UPDATE SET weight_kg = excluded.weight_kg`
+    db.prepare(sql).run('u1', '2026-10-02', 68.0)
+    db.prepare(sql).run('u1', '2026-10-02', 67.6)
 
-    const rows = db.prepare('SELECT * FROM weight_log').all()
+    const rows = db.prepare('SELECT date, weight_kg FROM weight_log').all()
     expect(rows).toHaveLength(1)
     expect(rows[0]?.weight_kg).toBe(67.6)
 
     // 另一天是独立一行
-    db.prepare(sql).run('2026-10-03', 67.4)
-    expect(db.prepare('SELECT * FROM weight_log').all()).toHaveLength(2)
+    db.prepare(sql).run('u1', '2026-10-03', 67.4)
+    expect(db.prepare('SELECT date, weight_kg FROM weight_log').all()).toHaveLength(2)
     db.close()
   })
 
-  it('dish_feedback 同 dish_id 重复写入最终只留一行', () => {
+  it('dish_feedback 同一人同一 dish_id 重复写入最终只留一行', () => {
     const db = openDb(':memory:')
-    const sql = `INSERT INTO dish_feedback (dish_id, score) VALUES (?, ?)
-                 ON CONFLICT(dish_id) DO UPDATE SET
+    db.prepare("INSERT INTO users (id, nickname) VALUES ('u1', '甲')").run()
+    const sql = `INSERT INTO dish_feedback (user_id, dish_id, score) VALUES (?, ?, ?)
+                 ON CONFLICT(user_id, dish_id) DO UPDATE SET
                    score = excluded.score, updated_at = datetime('now')`
-    db.prepare(sql).run('dish_002', 1)
-    db.prepare(sql).run('dish_002', -1)
+    db.prepare(sql).run('u1', 'dish_002', 1)
+    db.prepare(sql).run('u1', 'dish_002', -1)
 
-    const rows = db.prepare('SELECT * FROM dish_feedback').all()
+    const rows = db.prepare('SELECT dish_id, score FROM dish_feedback').all()
     expect(rows).toHaveLength(1)
     expect(rows[0]?.score).toBe(-1)
     expect(rows[0]?.dish_id).toBe('dish_002')
     db.close()
   })
 
-  it('profile 是单行表，插 id=2 被 CHECK 约束拒绝', () => {
+  it('profile 主键是 user_id —— 同一用户插两次撞主键，不同用户各有一份', () => {
     const db = openDb(':memory:')
-    db.prepare(
-      `INSERT INTO profile (id, sex, birthday, height_cm, activity_level, meal_mode, diet_structure)
-       VALUES (1, 'female', '1998-07-01', 162, 'light', 'fast168', 'balanced_cut')`,
-    ).run()
-    expect(db.prepare('SELECT COUNT(*) AS c FROM profile').get()?.c).toBe(1)
+    db.prepare("INSERT INTO users (id, nickname) VALUES ('u1', '甲')").run()
+    db.prepare("INSERT INTO users (id, nickname) VALUES ('u2', '乙')").run()
 
-    expect(() =>
-      db
-        .prepare(
-          `INSERT INTO profile (id, sex, birthday, height_cm, activity_level, meal_mode, diet_structure)
-           VALUES (2, 'male', '1990-01-01', 180, 'sedentary', 'normal', 'maintain')`,
-        )
-        .run(),
-    ).toThrow(/CHECK constraint failed/)
+    const insert = (id: string): void => {
+      db.prepare(
+        `INSERT INTO profile (user_id, sex, birthday, height_cm, activity_level, meal_mode, diet_structure)
+         VALUES (?, 'female', '1998-07-01', 162, 'light', 'fast168', 'balanced_cut')`,
+      ).run(id)
+    }
 
-    expect(db.prepare('SELECT COUNT(*) AS c FROM profile').get()?.c).toBe(1)
+    insert('u1')
+    insert('u2')
+    expect(db.prepare('SELECT COUNT(*) AS c FROM profile').get()?.c).toBe(2)
+
+    // 同一个用户再插一次 → 主键冲突（改造前是 CHECK (id = 1) 挡住的）
+    expect(() => insert('u1')).toThrow(/UNIQUE constraint failed/)
+    expect(db.prepare('SELECT COUNT(*) AS c FROM profile').get()?.c).toBe(2)
     db.close()
   })
 

@@ -29,6 +29,7 @@ import { saveProfile } from '../../src/db/repos/profileRepo.js'
 import { addWeight } from '../../src/db/repos/weightRepo.js'
 import { setFeedback } from '../../src/db/repos/feedbackRepo.js'
 import { getPlan } from '../../src/db/repos/planRepo.js'
+import { buildTestClient, openTestDb, type TestClient, type TestDb } from '../helpers/app.js'
 import { chefRoutes } from '../../src/routes/chef.js'
 import {
   ChefError,
@@ -45,10 +46,22 @@ import {
 } from '../../src/services/planService.js'
 import type { Dish, MacroTarget, MealTarget } from '../../src/types.js'
 
-// ---------- 真实数据目录里的用户菜谱文件（测试期间必须始终不存在） ----------
+// ---------- 真实数据目录里的 dishes.user.json（测试期间不得被改动） ----------
 
 const SRC_DATA_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'data')
 const REAL_USER_DISH_FILE = path.join(SRC_DATA_DIR, 'dishes.user.json')
+
+/**
+ * 这个文件的「快照」。用户菜谱已经搬进 user_dishes 表，代码里除了迁移那一次
+ * 之外不再读写它 —— 但文件本身可能还在（老库迁移完就能删）。
+ *
+ * 所以断言的应该是**没被改动**，而不是「不存在」：
+ * 后者会因为那份历史遗留文件一直在而恒假，等于一个永远失败的摆设断言。
+ */
+function snapshotUserDishFile(): string {
+  if (!fs.existsSync(REAL_USER_DISH_FILE)) return '(不存在)'
+  return fs.readFileSync(REAL_USER_DISH_FILE, 'utf8')
+}
 
 // ---------- 夹具食材（食材表里真实存在） ----------
 
@@ -171,6 +184,7 @@ const ENV_KEYS = ['FITNESS_DATA_DIR', 'LLM_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL'
 const originalEnv = new Map<string, string | undefined>()
 
 let tmpDir = ''
+let realUserDishSnapshot = ''
 
 beforeEach(() => {
   for (const key of ENV_KEYS) originalEnv.set(key, process.env[key])
@@ -178,6 +192,7 @@ beforeEach(() => {
   delete process.env.LLM_BASE_URL
   delete process.env.LLM_API_KEY
   delete process.env.LLM_MODEL
+  realUserDishSnapshot = snapshotUserDishFile()
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fitness-chef-replace-'))
   process.env.FITNESS_DATA_DIR = tmpDir
   clearDishCache()
@@ -192,7 +207,7 @@ afterEach(() => {
   originalEnv.clear()
   if (tmpDir !== '') fs.rmSync(tmpDir, { recursive: true, force: true })
   tmpDir = ''
-  expect(fs.existsSync(REAL_USER_DISH_FILE), 'src/data/dishes.user.json 不应被创建').toBe(false)
+  expect(snapshotUserDishFile(), '测试不得改动 src/data/dishes.user.json').toBe(realUserDishSnapshot)
 })
 
 // ================================================================
@@ -482,26 +497,28 @@ describe('replaceDishWithAi 热量缩放', () => {
 // 需求 1-5 / 1-6：失败路径 —— 报错且计划不被修改
 // ================================================================
 
-/** 造一个已落库的计划，返回 { db, mealIndex, dishIndex, 原计划快照 } */
-async function setupPlanWithDish(): Promise<{
-  db: DatabaseSync
-  plan: Awaited<ReturnType<typeof generatePlan>>
-  mealsJson: string
-}> {
-  const db = openDb(':memory:')
-  saveProfile(db, { ...VALID_PROFILE })
-  addWeight(db, DATE, 80)
-  const plan = await generatePlan(db, { db, date: DATE })
+/** 造一个已落库的计划，返回 TestDb（含 db/userId/nickname）+ 计划与原计划快照 */
+async function setupPlanWithDish(): Promise<
+  TestDb & {
+    plan: Awaited<ReturnType<typeof generatePlan>>
+    mealsJson: string
+  }
+> {
+  const t = openTestDb()
+  const { db, userId } = t
+  saveProfile(db, userId, { ...VALID_PROFILE })
+  addWeight(db, userId, DATE, 80)
+  const plan = await generatePlan(db, { db, userId, date: DATE })
   const row = db
-    .prepare(`SELECT meals_json FROM diet_plans WHERE date = ?`)
-    .get(DATE) as { meals_json: string }
-  return { db, plan, mealsJson: row.meals_json }
+    .prepare(`SELECT meals_json FROM diet_plans WHERE user_id = ? AND date = ?`)
+    .get(userId, DATE) as { meals_json: string }
+  return { ...t, plan, mealsJson: row.meals_json }
 }
 
-function mealsJsonOf(db: DatabaseSync): string {
+function mealsJsonOf(db: DatabaseSync, userId: string): string {
   const row = db
-    .prepare(`SELECT meals_json FROM diet_plans WHERE date = ?`)
-    .get(DATE) as { meals_json: string }
+    .prepare(`SELECT meals_json FROM diet_plans WHERE user_id = ? AND date = ?`)
+    .get(userId, DATE) as { meals_json: string }
   return row.meals_json
 }
 
@@ -518,7 +535,8 @@ function stripSuggestion<T extends { suggestion?: unknown }>(plan: T | null): Om
 
 describe('replaceDishInPlanWithAi 失败不落库', () => {
   it('🔴 编造食材 id → 重试后仍错，归为 LLM_FAILED，且当天计划一字未改', async () => {
-    const { db, plan, mealsJson } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId, plan, mealsJson } = t
     // constantLlm 每次都返回同一个坏结果，所以重试也救不回来 —— 这里验的是终态：
     // 枚举外的 id 在 schema 阶段就被挡下（早于 UNRESOLVABLE_INGREDIENTS 那一层），
     // 重试一次后失败，且无论如何都不写库。
@@ -529,7 +547,7 @@ describe('replaceDishInPlanWithAi 失败不落库', () => {
       },
     })
 
-    const err = await replaceDishInPlanWithAi(db, DATE, 0, 0, { callLlmImpl: fake.impl }).catch(
+    const err = await replaceDishInPlanWithAi(db, userId, DATE, 0, 0, { callLlmImpl: fake.impl }).catch(
       (e: unknown) => e,
     )
     expect(err).toBeInstanceOf(ChefError)
@@ -539,14 +557,15 @@ describe('replaceDishInPlanWithAi 失败不落库', () => {
     // （重试在 llm.test.ts 里验），只调一次是预期的
 
     // 回查数据库：落库的 meals_json 与调用前逐字节相同
-    expect(mealsJsonOf(db)).toBe(mealsJson)
+    expect(mealsJsonOf(db, userId)).toBe(mealsJson)
     // suggestion 是由体重史现算的派生值、故意不落库，比对时要剔除；
     // 这里要验的是「计划本身一字未改」。
-    expect(stripSuggestion(getPlan(db, DATE))).toEqual(stripSuggestion(plan))
+    expect(stripSuggestion(getPlan(db, userId, DATE))).toEqual(stripSuggestion(plan))
   })
 
   it('单位无法换算 → 同样归为 UNRESOLVABLE_INGREDIENTS，计划不变', async () => {
-    const { db, mealsJson } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId, mealsJson } = t
     const fake = constantLlm({
       dish: {
         ...GOOD_REPLACE_OUTPUT.dish,
@@ -555,44 +574,47 @@ describe('replaceDishInPlanWithAi 失败不落库', () => {
       },
     })
 
-    const err = await replaceDishInPlanWithAi(db, DATE, 0, 0, { callLlmImpl: fake.impl }).catch(
+    const err = await replaceDishInPlanWithAi(db, userId, DATE, 0, 0, { callLlmImpl: fake.impl }).catch(
       (e: unknown) => e,
     )
     expect((err as ChefError).code).toBe('UNRESOLVABLE_INGREDIENTS')
-    expect(mealsJsonOf(db)).toBe(mealsJson)
+    expect(mealsJsonOf(db, userId)).toBe(mealsJson)
   })
 
   it('isLlmConfigured() 为 false → NOT_CONFIGURED，计划不变，且不发请求', async () => {
-    const { db, mealsJson } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId, mealsJson } = t
 
-    const err = await replaceDishInPlanWithAi(db, DATE, 0, 0).catch((e: unknown) => e)
+    const err = await replaceDishInPlanWithAi(db, userId, DATE, 0, 0).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ChefError)
     expect((err as ChefError).code).toBe('NOT_CONFIGURED')
-    expect(mealsJsonOf(db)).toBe(mealsJson)
+    expect(mealsJsonOf(db, userId)).toBe(mealsJson)
   })
 
   it('LLM 超时 → LLM_FAILED，计划不变', async () => {
-    const { db, mealsJson } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId, mealsJson } = t
     const fake = createFakeLlm([
       () => {
         throw new LLMError('timeout', 'LLM 请求超时（30000ms）', { attempts: 1 })
       },
     ])
 
-    const err = await replaceDishInPlanWithAi(db, DATE, 0, 0, { callLlmImpl: fake.impl }).catch(
+    const err = await replaceDishInPlanWithAi(db, userId, DATE, 0, 0, { callLlmImpl: fake.impl }).catch(
       (e: unknown) => e,
     )
     expect((err as ChefError).code).toBe('LLM_FAILED')
     expect((err as ChefError).llmKind).toBe('timeout')
-    expect(mealsJsonOf(db)).toBe(mealsJson)
+    expect(mealsJsonOf(db, userId)).toBe(mealsJson)
   })
 
   it('成功换菜：只动被换的那一道，该餐与全天的汇总同步重算', async () => {
-    const { db, plan } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId, plan } = t
     const before = plan.meals[0]
     if (before === undefined) throw new Error('夹具计划第一餐缺失')
 
-    const result = await replaceDishInPlanWithAi(db, DATE, 0, 0, {
+    const result = await replaceDishInPlanWithAi(db, userId, DATE, 0, 0, {
       callLlmImpl: constantLlm(GOOD_REPLACE_OUTPUT).impl,
     })
 
@@ -616,7 +638,7 @@ describe('replaceDishInPlanWithAi 失败不落库', () => {
     const sum = result.plan.meals.reduce((a, m) => a + m.nutrition.kcal, 0)
     expect(result.plan.total.kcal).toBe(Math.round(sum))
     // suggestion 不落库，比对时剔除
-    expect(stripSuggestion(getPlan(db, DATE))).toEqual(stripSuggestion(result.plan))
+    expect(stripSuggestion(getPlan(db, userId, DATE))).toEqual(stripSuggestion(result.plan))
   })
 })
 
@@ -631,32 +653,37 @@ describe('POST /api/chef/replace-dish', () => {
    * 不传就走真实实现（此时因为没配 env 而必然返回 NOT_CONFIGURED）。
    */
   async function withApp(
-    db: DatabaseSync,
+    t: TestDb,
     llmImpl: FakeLlm['impl'] | undefined,
-    fn: (app: FastifyInstance) => Promise<void>,
+    fn: (client: TestClient) => Promise<void>,
   ): Promise<void> {
-    const app = Fastify({ logger: false })
-    void app.register(
-      chefRoutes,
-      llmImpl === undefined
-        ? { db }
-        : {
-            db,
-            replaceDish: (conn, date, mealIndex, dishIndex) =>
-              replaceDishInPlanWithAi(conn, date, mealIndex, dishIndex, { callLlmImpl: llmImpl }),
-          },
-    )
+    // 走 buildApp 而不是自己 register chefRoutes：这样鉴权 hook、错误处理都是真的，
+    // 自己拼一个 Fastify 会绕过它们，测出来的通过不代表线上也通过
+    const client = await buildTestClient({
+      db: t.db,
+      nickname: t.nickname,
+      chef:
+        llmImpl === undefined
+          ? undefined
+          : {
+              replaceDish: (conn, uid, date, mealIndex, dishIndex) =>
+                replaceDishInPlanWithAi(conn, uid, date, mealIndex, dishIndex, {
+                  callLlmImpl: llmImpl,
+                }),
+            },
+    })
     try {
-      await fn(app)
+      await fn(client)
     } finally {
-      await app.close()
+      await client.close()
     }
   }
 
   it('成功 → 200 + { result, plan }，新菜已落库', async () => {
-    const { db } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId } = t
     const fake = constantLlm(GOOD_REPLACE_OUTPUT)
-    await withApp(db, fake.impl, async (app) => {
+    await withApp(t, fake.impl, async (app) => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/chef/replace-dish',
@@ -672,19 +699,20 @@ describe('POST /api/chef/replace-dish', () => {
       expect(body.result.scaled).toBe(false)
       expect(body.plan.meals[0]?.dishes[0]?.dish.name).toBe('燕麦牛奶粥')
       // 真正写进了库
-      expect(getPlan(db, DATE)?.meals[0]?.dishes[0]?.dish.name).toBe('燕麦牛奶粥')
+      expect(getPlan(db, userId, DATE)?.meals[0]?.dishes[0]?.dish.name).toBe('燕麦牛奶粥')
     })
   })
 
   it('AI 编造食材 id → 400 + LLM_FAILED（枚举在 schema 阶段就挡住了），计划不变', async () => {
-    const { db, mealsJson } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId, mealsJson } = t
     const fake = constantLlm({
       dish: {
         ...GOOD_REPLACE_OUTPUT.dish,
         ingredients: [{ foodId: UNKNOWN_ID, amount: 100, unit: 'g' }],
       },
     })
-    await withApp(db, fake.impl, async (app) => {
+    await withApp(t, fake.impl, async (app) => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/chef/replace-dish',
@@ -695,17 +723,18 @@ describe('POST /api/chef/replace-dish', () => {
       expect(body.code).toBe('LLM_FAILED')
       expect(body.llmKind).toBe('schema')
     })
-    expect(mealsJsonOf(db)).toBe(mealsJson)
+    expect(mealsJsonOf(db, userId)).toBe(mealsJson)
   })
 
   it('LLM 挂了 → 400 + LLM_FAILED，计划不变', async () => {
-    const { db, mealsJson } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId, mealsJson } = t
     const fake = createFakeLlm([
       () => {
         throw new LLMError('timeout', 'LLM 请求超时（30000ms）', { attempts: 1 })
       },
     ])
-    await withApp(db, fake.impl, async (app) => {
+    await withApp(t, fake.impl, async (app) => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/chef/replace-dish',
@@ -714,13 +743,14 @@ describe('POST /api/chef/replace-dish', () => {
       expect(res.statusCode).toBe(400)
       expect(res.json()).toMatchObject({ code: 'LLM_FAILED', llmKind: 'timeout' })
     })
-    expect(mealsJsonOf(db)).toBe(mealsJson)
+    expect(mealsJsonOf(db, userId)).toBe(mealsJson)
   })
 
   it('mealIndex / dishIndex 越界 → 400 + INDEX_OUT_OF_RANGE，且不调 LLM', async () => {
-    const { db } = await setupPlanWithDish()
+    const t = await setupPlanWithDish()
+    const { db, userId } = t
     const fake = constantLlm(GOOD_REPLACE_OUTPUT)
-    await withApp(db, undefined, async (app) => {
+    await withApp(t, undefined, async (app) => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/chef/replace-dish',
@@ -742,8 +772,8 @@ describe('POST /api/chef/replace-dish', () => {
   })
 
   it('当天没有计划 → 404 + PLAN_NOT_FOUND', async () => {
-    const db = openDb(':memory:')
-    await withApp(db, undefined, async (app) => {
+    const t = openTestDb()
+    await withApp(t, undefined, async (app) => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/chef/replace-dish',
@@ -755,8 +785,9 @@ describe('POST /api/chef/replace-dish', () => {
   })
 
   it('未配置 LLM → 400 + NOT_CONFIGURED，计划不变', async () => {
-    const { db, mealsJson } = await setupPlanWithDish()
-    await withApp(db, undefined, async (app) => {
+    const t = await setupPlanWithDish()
+    const { db, userId, mealsJson } = t
+    await withApp(t, undefined, async (app) => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/chef/replace-dish',
@@ -765,12 +796,13 @@ describe('POST /api/chef/replace-dish', () => {
       expect(res.statusCode).toBe(400)
       expect(res.json()).toMatchObject({ code: 'NOT_CONFIGURED' })
     })
-    expect(mealsJsonOf(db)).toBe(mealsJson)
+    expect(mealsJsonOf(db, userId)).toBe(mealsJson)
   })
 
   it('body 结构非法 → 400 且错误含字段名', async () => {
-    const { db } = await setupPlanWithDish()
-    await withApp(db, undefined, async (app) => {
+    const t = await setupPlanWithDish()
+    const { db, userId } = t
+    await withApp(t, undefined, async (app) => {
       for (const payload of [
         { mealIndex: 0, dishIndex: 0 },
         { date: '2026/10/14', mealIndex: 0, dishIndex: 0 },
@@ -794,20 +826,20 @@ describe('POST /api/chef/replace-dish', () => {
  * 早餐只剩 simple 兜底项，凑不满区间 → degraded；
  * 午餐 / 晚餐候选池仍然足够（实测仍能达标），因此只有早餐会走 AI 兜底。
  */
-function forceBreakfastDegraded(db: DatabaseSync): void {
+function forceBreakfastDegraded(db: DatabaseSync, userId: string): void {
   const banned = loadAllDishes()
     .filter((d) => d.meals.includes('breakfast') && d.role !== 'simple')
     .map((d) => d.id)
   expect(banned.length).toBeGreaterThan(0)
-  for (const id of banned) setFeedback(db, id, -1)
+  for (const id of banned) setFeedback(db, userId, id, -1)
 }
 
-function setupDegradedDb(): DatabaseSync {
-  const db = openDb(':memory:')
-  saveProfile(db, { ...VALID_PROFILE })
-  addWeight(db, DATE, 80)
-  forceBreakfastDegraded(db)
-  return db
+function setupDegradedDb(): { db: DatabaseSync; userId: string } {
+  const { db, userId } = openTestDb()
+  saveProfile(db, userId, { ...VALID_PROFILE })
+  addWeight(db, userId, DATE, 80)
+  forceBreakfastDegraded(db, userId)
+  return { db, userId }
 }
 
 /** 一套落在早餐区间内的完整搭配：主食 232 + 蛋白 266 + 素菜 90 = 588 kcal */
@@ -836,18 +868,19 @@ const GOOD_MEAL_OUTPUT = {
 
 describe('generatePlan 的 AI 兜底', () => {
   it('前置：关掉早餐候选后算法确实会降级（兜底才有事可做）', async () => {
-    const db = setupDegradedDb()
-    const plan = await generatePlan(db, { db, date: DATE })
+    const { db, userId } = setupDegradedDb()
+    const plan = await generatePlan(db, { db, userId, date: DATE })
     expect(plan.degraded).toBe(true)
     expect(plan.meals[0]?.degraded).toBe(true)
     expect(plan.aiMeals).toBeUndefined()
   })
 
   it('降级餐次由 AI 接管后 degraded 变 false，aiMeals 记录该餐次', async () => {
-    const db = setupDegradedDb()
+    const { db, userId } = setupDegradedDb()
     const fake = constantLlm(GOOD_MEAL_OUTPUT)
 
     const plan = await generatePlan(db, {
+      userId,
       db,
       date: DATE,
       useAiFallback: true,
@@ -871,13 +904,13 @@ describe('generatePlan 的 AI 兜底', () => {
       expect(p.nutrition).toEqual(calcNutrition(p.dish.ingredients, getFoodIndex()))
     }
     // 落库后读回来仍然带 aiMeals
-    expect(getPlan(db, DATE)?.aiMeals).toEqual(['breakfast'])
+    expect(getPlan(db, userId, DATE)?.aiMeals).toEqual(['breakfast'])
   })
 
   it('兜底 prompt 含该餐目标、区间与可参考的菜名', async () => {
-    const db = setupDegradedDb()
+    const { db, userId } = setupDegradedDb()
     const fake = constantLlm(GOOD_MEAL_OUTPUT)
-    await generatePlan(db, { db, date: DATE, useAiFallback: true, callLlmImpl: fake.impl })
+    await generatePlan(db, { db, userId, date: DATE, useAiFallback: true, callLlmImpl: fake.impl })
 
     const prompt = fake.calls[0]?.prompt ?? ''
     expect(prompt).toContain('早餐')
@@ -900,7 +933,7 @@ describe('generatePlan 的 AI 兜底', () => {
   })
 
   it('🔴 AI 兜底失败时静默回退：仍返回完整食谱、degraded 保持 true、不抛错', async () => {
-    const db = setupDegradedDb()
+    const { db, userId } = setupDegradedDb()
     const fake = createFakeLlm([
       () => {
         throw new LLMError('http', 'LLM 返回 HTTP 503', { attempts: 1, status: 503 })
@@ -908,6 +941,7 @@ describe('generatePlan 的 AI 兜底', () => {
     ])
 
     const plan = await generatePlan(db, {
+      userId,
       db,
       date: DATE,
       useAiFallback: true,
@@ -926,12 +960,17 @@ describe('generatePlan 的 AI 兜底', () => {
       }
     }
     // 和不开兜底的纯算法结果逐字段一致
-    const plain = await generatePlan(openDb(':memory:'), { db: setupDegradedDb(), date: DATE })
+    const plainDb = setupDegradedDb()
+    const plain = await generatePlan(plainDb.db, {
+      db: plainDb.db,
+      userId: plainDb.userId,
+      date: DATE,
+    })
     expect(plan.meals.map((m) => m.nutrition)).toEqual(plain.meals.map((m) => m.nutrition))
   })
 
   it('AI 给的配料解析不了 → 同样静默回退，不抛错', async () => {
-    const db = setupDegradedDb()
+    const { db, userId } = setupDegradedDb()
     const fake = constantLlm({
       dishes: [
         {
@@ -944,6 +983,7 @@ describe('generatePlan 的 AI 兜底', () => {
     })
 
     const plan = await generatePlan(db, {
+      userId,
       db,
       date: DATE,
       useAiFallback: true,
@@ -956,7 +996,7 @@ describe('generatePlan 的 AI 兜底', () => {
   })
 
   it('AI 给的搭配缩放后仍不达标 → 静默回退', async () => {
-    const db = setupDegradedDb()
+    const { db, userId } = setupDegradedDb()
     // 只有一道 30 kcal 的小菜，远够不到早餐区间，且再怎么缩也不可能补上来
     const fake = constantLlm({
       dishes: [
@@ -970,6 +1010,7 @@ describe('generatePlan 的 AI 兜底', () => {
     })
 
     const plan = await generatePlan(db, {
+      userId,
       db,
       date: DATE,
       useAiFallback: true,
@@ -981,10 +1022,10 @@ describe('generatePlan 的 AI 兜底', () => {
   })
 
   it('未传 useAiFallback（默认 false）时根本不调 LLM', async () => {
-    const db = setupDegradedDb()
+    const { db, userId } = setupDegradedDb()
     const fake = constantLlm(GOOD_MEAL_OUTPUT)
 
-    const plan = await generatePlan(db, { db, date: DATE, callLlmImpl: fake.impl })
+    const plan = await generatePlan(db, { db, userId, date: DATE, callLlmImpl: fake.impl })
 
     expect(fake.calls).toHaveLength(0)
     expect(plan.degraded).toBe(true)
@@ -992,10 +1033,11 @@ describe('generatePlan 的 AI 兜底', () => {
   })
 
   it('显式传 useAiFallback=false 时同样不调 LLM', async () => {
-    const db = setupDegradedDb()
+    const { db, userId } = setupDegradedDb()
     const fake = constantLlm(GOOD_MEAL_OUTPUT)
 
     await generatePlan(db, {
+      userId,
       db,
       date: DATE,
       useAiFallback: false,
@@ -1005,8 +1047,8 @@ describe('generatePlan 的 AI 兜底', () => {
   })
 
   it('开启兜底但未配置 LLM → 静默沿用算法方案，不抛错', async () => {
-    const db = setupDegradedDb()
-    const plan = await generatePlan(db, { db, date: DATE, useAiFallback: true })
+    const { db, userId } = setupDegradedDb()
+    const plan = await generatePlan(db, { db, userId, date: DATE, useAiFallback: true })
 
     expect(plan.degraded).toBe(true)
     expect(plan.aiMeals).toBeUndefined()
@@ -1014,12 +1056,13 @@ describe('generatePlan 的 AI 兜底', () => {
   })
 
   it('算法没降级时不调 LLM（没有兜底的必要）', async () => {
-    const db = openDb(':memory:')
-    saveProfile(db, { ...VALID_PROFILE })
-    addWeight(db, DATE, 80)
+    const { db, userId } = openTestDb()
+    saveProfile(db, userId, { ...VALID_PROFILE })
+    addWeight(db, userId, DATE, 80)
     const fake = constantLlm(GOOD_MEAL_OUTPUT)
 
     const plan = await generatePlan(db, {
+      userId,
       db,
       date: DATE,
       useAiFallback: true,
@@ -1070,11 +1113,11 @@ describe('generatePlan 的 AI 兜底', () => {
 // ================================================================
 
 describe('StoredPlan.aiMeals 向后兼容', () => {
-  function insertRaw(db: DatabaseSync, date: string, mealsJson: string): void {
+  function insertRaw(db: DatabaseSync, userId: string, date: string, mealsJson: string): void {
     db.prepare(
-      `INSERT INTO diet_plans (date, total_kcal, protein_g, carb_g, fat_g, meals_json, source)
-       VALUES (?, ?, ?, ?, ?, ?, 'algo')`,
-    ).run(date, 2000, 150, 200, 60, mealsJson)
+      `INSERT INTO diet_plans (user_id, date, total_kcal, protein_g, carb_g, fat_g, meals_json, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'algo')`,
+    ).run(userId, date, 2000, 150, 200, 60, mealsJson)
   }
 
   const LEGACY_MEALS_JSON = JSON.stringify([
@@ -1105,10 +1148,10 @@ describe('StoredPlan.aiMeals 向后兼容', () => {
   ])
 
   it('老数据（裸数组、无 aiMeals）能正常读出，aiMeals 为 undefined', () => {
-    const db = openDb(':memory:')
-    insertRaw(db, '2020-01-01', LEGACY_MEALS_JSON)
+    const { db, userId } = openTestDb()
+    insertRaw(db, userId, '2020-01-01', LEGACY_MEALS_JSON)
 
-    const plan = getPlan(db, '2020-01-01')
+    const plan = getPlan(db, userId, '2020-01-01')
     expect(plan).not.toBeNull()
     expect(plan?.meals).toHaveLength(1)
     expect(plan?.meals[0]?.dishes[0]?.dish.name).toBe('小米粥')
@@ -1118,43 +1161,44 @@ describe('StoredPlan.aiMeals 向后兼容', () => {
   })
 
   it('新形态对象但没有 aiMeals 字段，同样能读', () => {
-    const db = openDb(':memory:')
-    insertRaw(db, '2020-01-02', JSON.stringify({ meals: JSON.parse(LEGACY_MEALS_JSON) }))
+    const { db, userId } = openTestDb()
+    insertRaw(db, userId, '2020-01-02', JSON.stringify({ meals: JSON.parse(LEGACY_MEALS_JSON) }))
 
-    const plan = getPlan(db, '2020-01-02')
+    const plan = getPlan(db, userId, '2020-01-02')
     expect(plan?.meals).toHaveLength(1)
     expect(plan?.aiMeals).toBeUndefined()
   })
 
   it('非法 meals_json 降级为空计划，不炸', () => {
-    const db = openDb(':memory:')
-    insertRaw(db, '2020-01-03', 'not json at all')
-    expect(getPlan(db, '2020-01-03')?.meals).toEqual([])
+    const { db, userId } = openTestDb()
+    insertRaw(db, userId, '2020-01-03', 'not json at all')
+    expect(getPlan(db, userId, '2020-01-03')?.meals).toEqual([])
   })
 
   it('没有 AI 接管的计划不带 aiMeals 字段，写回时仍是裸数组（老格式零变化）', async () => {
-    const db = openDb(':memory:')
-    saveProfile(db, { ...VALID_PROFILE })
-    addWeight(db, DATE, 80)
-    await generatePlan(db, { db, date: DATE })
+    const { db, userId } = openTestDb()
+    saveProfile(db, userId, { ...VALID_PROFILE })
+    addWeight(db, userId, DATE, 80)
+    await generatePlan(db, { db, userId, date: DATE })
 
-    const raw = JSON.parse(mealsJsonOf(db)) as unknown
+    const raw = JSON.parse(mealsJsonOf(db, userId)) as unknown
     expect(Array.isArray(raw)).toBe(true)
-    expect(getPlan(db, DATE)?.aiMeals).toBeUndefined()
+    expect(getPlan(db, userId, DATE)?.aiMeals).toBeUndefined()
   })
 
   it('reroll 一份带 aiMeals 的计划时不会把标记丢掉', async () => {
-    const db = setupDegradedDb()
+    const { db, userId } = setupDegradedDb()
     await generatePlan(db, {
+      userId,
       db,
       date: DATE,
       useAiFallback: true,
       callLlmImpl: constantLlm(GOOD_MEAL_OUTPUT).impl,
     })
-    expect(getPlan(db, DATE)?.aiMeals).toEqual(['breakfast'])
+    expect(getPlan(db, userId, DATE)?.aiMeals).toEqual(['breakfast'])
 
     const { rerollDish } = await import('../../src/services/planService.js')
-    const rerolled = rerollDish(db, DATE, 1, 0)
+    const rerolled = rerollDish(db, userId, DATE, 1, 0)
     expect(rerolled.plan.aiMeals).toEqual(['breakfast'])
   })
 })

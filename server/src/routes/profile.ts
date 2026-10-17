@@ -10,6 +10,7 @@ import { calcBmr, calcDailyTarget, calcMacros } from '../core/bmr.js'
 import { splitMeals } from '../core/mealSplit.js'
 import { getProfile, effectiveRatio, saveProfile } from '../db/repos/profileRepo.js'
 import { addWeight, latestWeight, listWeights, listWeightsSince } from '../db/repos/weightRepo.js'
+import { requireUser } from '../services/authService.js'
 import type { Profile } from '../types.js'
 
 // ---------- 工具 ----------
@@ -116,9 +117,12 @@ export async function profileRoutes(
   const { db } = opts
 
   // 档案
-  app.get('/api/profile', async () => ({ profile: getProfile(db) }))
+  app.get('/api/profile', async (request) => ({
+    profile: getProfile(db, requireUser(request)),
+  }))
 
   app.put('/api/profile', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = profileSchema.safeParse(request.body)
     if (!parsed.success) return fail(reply, parsed.error)
 
@@ -134,45 +138,52 @@ export async function profileRoutes(
       deficitKcal: parsed.data.deficitKcal,
       goalWeightKg: parsed.data.goalWeightKg ?? null,
     }
-    return { profile: saveProfile(db, profile) }
+    return { profile: saveProfile(db, userId, profile) }
   })
 
   // 体重：记录
   app.post('/api/profile/weight', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = weightSchema.safeParse(request.body)
     if (!parsed.success) return fail(reply, parsed.error)
 
     const date = parsed.data.date ?? localDate()
-    const record = addWeight(db, date, parsed.data.weightKg)
+    const record = addWeight(db, userId, date, parsed.data.weightKg)
     return { record }
   })
 
   // 体重：历史窗口（先注册静态路径，避免被动态段吃掉）
   app.get('/api/profile/weight/history', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = historyQuerySchema.safeParse(request.query)
     if (!parsed.success) return fail(reply, parsed.error)
 
     const days = parsed.data.days
     // 最近 N 天含今天，故回看 N-1 天
     const since = daysAgoDate(days - 1)
-    return { records: listWeightsSince(db, since) }
+    return { records: listWeightsSince(db, userId, since) }
   })
 
   // 体重：列表（倒序）
   app.get('/api/profile/weight', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = listQuerySchema.safeParse(request.query)
     if (!parsed.success) return fail(reply, parsed.error)
 
-    const records = parsed.data.limit === undefined ? listWeights(db) : listWeights(db, parsed.data.limit)
+    const records =
+      parsed.data.limit === undefined
+        ? listWeights(db, userId)
+        : listWeights(db, userId, parsed.data.limit)
     return { records }
   })
 
   // 营养目标：档案 + 最新体重 → BMR → TDEE → 每日目标 → 宏量 → 拆餐
-  app.get('/api/profile/target', async () => {
-    const profile = getProfile(db)
+  app.get('/api/profile/target', async (request) => {
+    const userId = requireUser(request)
+    const profile = getProfile(db, userId)
     if (!profile) return { hasProfile: false }
 
-    const latest = latestWeight(db)
+    const latest = latestWeight(db, userId)
     if (!latest) return { hasProfile: true, hasWeight: false }
 
     const weightKg = latest.weightKg

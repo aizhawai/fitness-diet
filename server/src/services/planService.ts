@@ -134,13 +134,17 @@ function sumMacros(list: MacroTarget[]): MacroTarget {
  * 展开历史：取目标日期前后 HISTORY_WINDOW_DAYS 天内的 diet_plans，
  * 把出现过的菜摊平成 DishHistoryEntry[]（同一天同一道菜只留一条）。
  */
-export function buildHistory(db: DatabaseSync, date: string): DishHistoryEntry[] {
+export function buildHistory(
+  db: DatabaseSync,
+  userId: string,
+  date: string,
+): DishHistoryEntry[] {
   const since = shiftDate(date, -HISTORY_WINDOW_DAYS)
   const until = shiftDate(date, HISTORY_WINDOW_DAYS)
 
   const history: DishHistoryEntry[] = []
   const seen = new Set<string>()
-  for (const plan of listPlansSince(db, since)) {
+  for (const plan of listPlansSince(db, userId, since)) {
     if (plan.date > until) continue
     for (const meal of plan.meals) {
       for (const planned of meal.dishes) {
@@ -154,9 +158,9 @@ export function buildHistory(db: DatabaseSync, date: string): DishHistoryEntry[]
   return history
 }
 
-/** 读全部菜品反馈作为偏好 */
-export function loadPreference(db: DatabaseSync): DishFeedback[] {
-  return listFeedback(db)
+/** 读该用户的全部菜品反馈作为偏好 */
+export function loadPreference(db: DatabaseSync, userId: string): DishFeedback[] {
+  return listFeedback(db, userId)
 }
 
 /**
@@ -172,10 +176,10 @@ const AI_HISTORY_DAYS = 4
  *
  * 今天的不算「历史」—— 那正是模型正在替换的那一餐，拿它当参考等于让模型抄自己。
  */
-function buildAiHistory(db: DatabaseSync, on: string): HistoryEntry[] {
+function buildAiHistory(db: DatabaseSync, userId: string, on: string): HistoryEntry[] {
   const since = shiftDate(on, -AI_HISTORY_DAYS)
   const entries: HistoryEntry[] = []
-  for (const plan of listPlansSince(db, since)) {
+  for (const plan of listPlansSince(db, userId, since)) {
     if (plan.date >= on) continue
     for (const meal of plan.meals) {
       const names = meal.dishes.map((d) => d.dish.name)
@@ -194,13 +198,18 @@ function buildAiHistory(db: DatabaseSync, on: string): HistoryEntry[] {
  * 档案 + 最新体重 → 各餐目标。
  * 无档案 / 无体重是业务前置条件缺失，抛 PlanError 而不是让上层拆异常。
  */
-export function resolveMealTargets(db: DatabaseSync, hasTraining: boolean, on: string): MealTarget[] {
-  const profile = getProfile(db)
+export function resolveMealTargets(
+  db: DatabaseSync,
+  userId: string,
+  hasTraining: boolean,
+  on: string,
+): MealTarget[] {
+  const profile = getProfile(db, userId)
   if (profile === null) {
     throw new PlanError('NO_PROFILE', '还没有用户档案，请先在「我的」里完成设置', 400)
   }
 
-  const latest = latestWeight(db)
+  const latest = latestWeight(db, userId)
   if (latest === null) {
     throw new PlanError('NO_WEIGHT', '还没有体重记录，请先记录一次体重', 400)
   }
@@ -225,6 +234,8 @@ export function resolveMealTargets(db: DatabaseSync, hasTraining: boolean, on: s
 
 export interface GeneratePlanOptions {
   db: DatabaseSync
+  /** 归属用户。**必填** —— 档案/体重/历史/偏好全部按它过滤，漏了就会读到别人的 */
+  userId: string
   /** 目标日期 YYYY-MM-DD，缺省今天 */
   date?: string
   /** 是否有训练后加餐，缺省 false */
@@ -250,33 +261,34 @@ export interface GeneratePlanOptions {
  */
 export async function generatePlan(
   db: DatabaseSync,
-  opts: GeneratePlanOptions = { db },
+  opts: GeneratePlanOptions,
 ): Promise<StoredPlan> {
   const conn = opts.db ?? db
+  const userId = opts.userId
   const date = opts.date ?? localDate()
   const source: PlanSource = opts.source ?? 'algo'
   const force = opts.force ?? true
   const hasTraining = opts.hasTraining ?? false
 
   if (!force) {
-    const existing = getPlan(conn, date)
+    const existing = getPlan(conn, userId, date)
     // suggestion 不落库，命中缓存的路径同样要现算挂上，否则同一个接口两次返回结构不一致
-    if (existing !== null) return withSuggestion(conn, existing)
+    if (existing !== null) return withSuggestion(conn, userId, existing)
   }
 
-  const meals = resolveMealTargets(conn, hasTraining, localDate())
+  const meals = resolveMealTargets(conn, userId, hasTraining, localDate())
   let dayPlan: DayPlan = generateDay({
     date,
     meals,
-    dishes: loadAllDishes(),
+    dishes: loadAllDishes(conn, userId),
     foodIndex: getFoodIndex(),
-    history: buildHistory(conn, date),
-    feedback: loadPreference(conn),
+    history: buildHistory(conn, userId, date),
+    feedback: loadPreference(conn, userId),
   })
 
-  const fallback = await applyAiFallback(conn, dayPlan, meals, opts)
+  const fallback = await applyAiFallback(conn, userId, dayPlan, meals, opts)
   dayPlan = fallback.dayPlan
-  return withSuggestion(conn, savePlan(conn, date, dayPlan, source, fallback.aiMeals))
+  return withSuggestion(conn, userId, savePlan(conn, userId, date, dayPlan, source, fallback.aiMeals))
 }
 
 /**
@@ -285,20 +297,24 @@ export async function generatePlan(
  * 只提醒不强制 —— 前端渲染成非阻断提示条，改不改由用户自己点。
  * 无档案时没有「当前结构」可言，直接不挂这个字段。
  */
-function withSuggestion(db: DatabaseSync, plan: StoredPlan): StoredPlan {
-  return attachStageSuggestion(db, plan)
+function withSuggestion(db: DatabaseSync, userId: string, plan: StoredPlan): StoredPlan {
+  return attachStageSuggestion(db, userId, plan)
 }
 
 /**
  * 挂上阶段建议的对外入口：路由层的 GET /api/plan/:date 读库后直接用它补上，
  * 因为 suggestion 不落库（体重一变就变，存进去只会留下过期快照）。
  */
-export function attachStageSuggestion(db: DatabaseSync, plan: StoredPlan): StoredPlan {
-  const profile = getProfile(db)
+export function attachStageSuggestion(
+  db: DatabaseSync,
+  userId: string,
+  plan: StoredPlan,
+): StoredPlan {
+  const profile = getProfile(db, userId)
   if (profile === null) return plan
 
   const suggestion = suggestStage({
-    weightHistory: listWeights(db).map((r) => ({ date: r.date, weightKg: r.weightKg })),
+    weightHistory: listWeights(db, userId).map((r) => ({ date: r.date, weightKg: r.weightKg })),
     goalWeightKg: profile.goalWeightKg,
     currentStructure: profile.dietStructure,
   })
@@ -317,6 +333,7 @@ export function attachStageSuggestion(db: DatabaseSync, plan: StoredPlan): Store
  */
 async function applyAiFallback(
   db: DatabaseSync,
+  userId: string,
   dayPlan: DayPlan,
   targets: MealTarget[],
   opts: GeneratePlanOptions,
@@ -334,7 +351,7 @@ async function applyAiFallback(
     .map(({ i }) => i)
   if (degradedIdx.length === 0) return { dayPlan }
 
-  const dishes = loadAllDishes()
+  const dishes = loadAllDishes(db, userId)
   const meals = dayPlan.meals.slice()
   const taken = new Set(meals.flatMap((m) => m.dishes.map((p) => p.dish.id)))
   const aiMeals: MealType[] = []
@@ -354,8 +371,8 @@ async function applyAiFallback(
           dishes,
           excludeIds: [...taken],
           // 让 AI 知道用户不吃什么、以及最近实际怎么吃的
-          feedback: loadPreference(db),
-          history: buildAiHistory(db, dayPlan.date),
+          feedback: loadPreference(db, userId),
+          history: buildAiHistory(db, userId, dayPlan.date),
         },
         { callLlmImpl: opts.callLlmImpl },
       )
@@ -531,12 +548,13 @@ function rerollSlot(ctx: RerollSlotContext): { dishes: PlannedDish[]; keptOrigin
  */
 export function rerollDish(
   db: DatabaseSync,
+  userId: string,
   date: string,
   mealIndex: number,
   dishIndex: number,
   opts: RerollDishOptions = {},
 ): RerollResult {
-  const current = getPlan(db, date)
+  const current = getPlan(db, userId, date)
   if (current === null) {
     throw new PlanError('PLAN_NOT_FOUND', `${date} 还没有食谱计划，请先生成`, 404)
   }
@@ -556,10 +574,10 @@ export function rerollDish(
     meal,
     dishIndex,
     date,
-    dishes: loadAllDishes(),
+    dishes: loadAllDishes(db, userId),
     foodIndex: getFoodIndex(),
-    history: buildHistory(db, date),
-    feedback: loadPreference(db),
+    history: buildHistory(db, userId, date),
+    feedback: loadPreference(db, userId),
     exclude,
   })
 
@@ -581,7 +599,11 @@ export function rerollDish(
     total: sumMacros(meals.map((m) => m.nutrition)),
     degraded: meals.some((m) => m.degraded),
   }
-  const plan = withSuggestion(db, savePlan(db, date, dayPlan, current.source, current.aiMeals))
+  const plan = withSuggestion(
+    db,
+    userId,
+    savePlan(db, userId, date, dayPlan, current.source, current.aiMeals),
+  )
 
   const newDish = plan.meals[mealIndex]?.dishes[dishIndex]?.dish
   return {
@@ -623,12 +645,13 @@ export interface AiReplacePlanResult {
  */
 export async function replaceDishInPlanWithAi(
   db: DatabaseSync,
+  userId: string,
   date: string,
   mealIndex: number,
   dishIndex: number,
   opts: AiReplaceOptions = {},
 ): Promise<AiReplacePlanResult> {
-  const current = getPlan(db, date)
+  const current = getPlan(db, userId, date)
   if (current === null) {
     throw new PlanError('PLAN_NOT_FOUND', `${date} 还没有食谱计划，请先生成`, 404)
   }
@@ -654,10 +677,10 @@ export async function replaceDishInPlanWithAi(
       mealKcalMin: meal.kcalMin,
       mealKcalMax: meal.kcalMax,
       siblingNutrition,
-      dishes: loadAllDishes(),
+      dishes: loadAllDishes(db, userId),
       // 让 AI 避开用户不吃的东西，并参考最近 4 天实际怎么吃的
-      feedback: loadPreference(db),
-      history: buildAiHistory(db, date),
+      feedback: loadPreference(db, userId),
+      history: buildAiHistory(db, userId, date),
     },
     { callLlmImpl: opts.callLlmImpl, temperature: opts.temperature, maxTokens: opts.maxTokens },
   )
@@ -681,6 +704,10 @@ export async function replaceDishInPlanWithAi(
     total: sumMacros(meals.map((m) => m.nutrition)),
     degraded: meals.some((m) => m.degraded),
   }
-  const plan = withSuggestion(db, savePlan(db, date, dayPlan, current.source, current.aiMeals))
+  const plan = withSuggestion(
+    db,
+    userId,
+    savePlan(db, userId, date, dayPlan, current.source, current.aiMeals),
+  )
   return { result, plan }
 }

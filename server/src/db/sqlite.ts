@@ -2,64 +2,21 @@
  * SQLite 连接与建表。
  * 用 Node 内置的 node:sqlite（Node 24），不是 better-sqlite3。
  * 注意：查询返回的行是 null-prototype 对象，测试里用 toEqual 或先展开 {...row}。
+ *
+ * 建表与版本迁移都在 db/migrate.ts，这里只管连接与 PRAGMA。
  */
 
 import { DatabaseSync } from 'node:sqlite'
 import fs from 'node:fs'
 import { dirname as nodeDirname, join as pathJoin } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { migrate } from './migrate.js'
 
 /** 内存库标识，不会走文件系统 */
 const MEMORY = ':memory:'
 
 /**
- * 建表语句，全部 IF NOT EXISTS，可重复执行。
- * - profile：单行表（CHECK id = 1），只存一份用户档案
- * - weight_log / diet_plans：按 date 唯一，一天一条，重复录入走 UPSERT
- * - dish_feedback：按 dish_id 唯一，同一道菜的评分只保留最新
- */
-const SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS profile (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  sex TEXT NOT NULL,
-  birthday TEXT NOT NULL,
-  height_cm REAL NOT NULL,
-  activity_level TEXT NOT NULL,
-  meal_mode TEXT NOT NULL,
-  diet_structure TEXT NOT NULL,
-  custom_ratio TEXT,
-  deficit_kcal INTEGER NOT NULL DEFAULT 400,
-  goal_weight_kg REAL
-);
-
-CREATE TABLE IF NOT EXISTS weight_log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  date TEXT NOT NULL UNIQUE,
-  weight_kg REAL NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS diet_plans (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  date TEXT NOT NULL UNIQUE,
-  total_kcal REAL NOT NULL,
-  protein_g REAL NOT NULL,
-  carb_g REAL NOT NULL,
-  fat_g REAL NOT NULL,
-  meals_json TEXT NOT NULL,
-  source TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS dish_feedback (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  dish_id TEXT NOT NULL,
-  score INTEGER NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(dish_id)
-);
-`
-
-/**
- * 打开数据库并确保表结构存在（幂等）。
+ * 打开数据库并确保表结构是当前版本（幂等，老库会自动迁移）。
  * @param path 数据库文件路径，':memory:' 表示内存库
  */
 export function openDb(path: string): DatabaseSync {
@@ -78,7 +35,10 @@ export function openDb(path: string): DatabaseSync {
     // 忽略：不支持 WAL 的场景（如内存库）继续跑
   }
 
-  db.exec(SCHEMA_SQL)
+  // ⚠️ 必须在这里、且只在**这一个连接**上迁移。多用户改造之前 chef 路由会自己
+  // 懒开第二个连接，两个连接同时改表会撞 SQLITE_SCHEMA（预编译语句缓存失效）。
+  // 那个第二连接已经在 app.ts 里修掉了。
+  migrate(db)
   return db
 }
 

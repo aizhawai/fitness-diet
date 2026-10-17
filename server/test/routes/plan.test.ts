@@ -6,14 +6,15 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
+import path from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import type { DatabaseSync } from 'node:sqlite'
-import { buildApp } from '../../src/app.js'
+import { buildTestClient, openTestDb, type TestClient } from '../helpers/app.js'
 import { openDb } from '../../src/db/sqlite.js'
 import { listPlans } from '../../src/db/repos/planRepo.js'
 import { generatePlan } from '../../src/services/planService.js'
 import { setFeedback } from '../../src/db/repos/feedbackRepo.js'
-import { getUserDishPath } from '../../src/data/load.js'
+
 
 // ---------- 夹具 ----------
 
@@ -33,12 +34,15 @@ const VALID_PROFILE = {
   goalWeightKg: 70,
 } as const
 
-let app: FastifyInstance
+let app: TestClient
 let db: DatabaseSync
+let userId: string
 
-beforeEach(() => {
-  db = openDb(':memory:')
-  app = buildApp({ db })
+beforeEach(async () => {
+  const t = openTestDb()
+  db = t.db
+  userId = t.userId
+  app = await buildTestClient({ db: t.db, nickname: t.nickname })
 })
 
 afterEach(async () => {
@@ -226,7 +230,7 @@ describe('计划落库与查询', () => {
 
     const count = db.prepare('SELECT COUNT(*) AS n FROM diet_plans').get() as Record<string, unknown>
     expect(Number(count['n'])).toBe(1)
-    expect(listPlans(db)).toHaveLength(1)
+    expect(listPlans(db, userId)).toHaveLength(1)
     // 重生成会带上「同一天已用过」的历史，结果不应与第一次完全相同
     expect(dishIdsOf(second)).not.toEqual(dishIdsOf(first))
   })
@@ -235,13 +239,13 @@ describe('计划落库与查询', () => {
     await setupUser()
     const first = await generate('2026-10-14')
 
-    const same = await generatePlan(db, { db, date: '2026-10-14', force: false })
+    const same = await generatePlan(db, { db, userId, date: '2026-10-14', force: false })
     expect(same).toEqual(first)
 
     // force 缺省为 true：重生成并覆盖
-    const regen = await generatePlan(db, { db, date: '2026-10-14' })
+    const regen = await generatePlan(db, { db, userId, date: '2026-10-14' })
     expect(regen.date).toBe('2026-10-14')
-    expect(listPlans(db)).toHaveLength(1)
+    expect(listPlans(db, userId)).toHaveLength(1)
   })
 
   it('不存在的日期 → 404 + PLAN_NOT_FOUND', async () => {
@@ -398,7 +402,7 @@ describe('菜品反馈', () => {
 
     // 取第一次结果里的 3 道菜标记为「不吃」
     const banned = dishIdsOf(first).slice(0, 3)
-    for (const id of banned) setFeedback(db, id, -1)
+    for (const id of banned) setFeedback(db, userId, id, -1)
 
     const second = await generate('2026-10-14')
     const used = new Set(dishIdsOf(second))
@@ -410,9 +414,11 @@ describe('菜品反馈', () => {
 // ---------- 数据不污染 ----------
 
 describe('测试不污染数据目录', () => {
-  it('src/data 下没有生成 dishes.user.json', async () => {
+  it('生成计划不会往 src/data 写任何文件（数据只在内存库里）', async () => {
+    const dataDir = path.join(process.cwd(), 'src', 'data')
+    const before = fs.readdirSync(dataDir).sort()
     await setupUser()
     await generate('2026-10-14')
-    expect(fs.existsSync(getUserDishPath())).toBe(false)
+    expect(fs.readdirSync(dataDir).sort()).toEqual(before)
   })
 })

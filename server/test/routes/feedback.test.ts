@@ -9,12 +9,12 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
-import type { FastifyInstance } from 'fastify'
+import path from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
-import { buildApp } from '../../src/app.js'
+import { buildTestClient, openTestDb, type TestClient } from '../helpers/app.js'
 import { openDb } from '../../src/db/sqlite.js'
 import { listFeedback } from '../../src/db/repos/feedbackRepo.js'
-import { getUserDishPath, loadAllDishes } from '../../src/data/load.js'
+import { loadAllDishes } from '../../src/data/load.js'
 import type { DishFeedback } from '../../src/types.js'
 
 // ---------- 夹具 ----------
@@ -31,14 +31,13 @@ const VALID_PROFILE = {
   goalWeightKg: 70,
 } as const
 
-/** 一套全新的「内存库 + app」，用于需要与主 app 状态隔离的对照场景 */
-function freshApp(): { app: FastifyInstance; db: DatabaseSync } {
-  const db = openDb(':memory:')
-  return { app: buildApp({ db }), db }
+/** 一套全新的「内存库 + 已登录 app」，用于需要与主 app 状态隔离的对照场景 */
+async function freshApp(): Promise<TestClient> {
+  return buildTestClient()
 }
 
 /** 建档案 + 记体重（生成计划的两个前置条件） */
-async function setupUser(app: FastifyInstance): Promise<void> {
+async function setupUser(app: TestClient): Promise<void> {
   await app.inject({ method: 'PUT', url: '/api/profile', payload: VALID_PROFILE })
   await app.inject({
     method: 'POST',
@@ -58,7 +57,7 @@ interface JsonPlan {
 }
 
 /** POST /api/plan/generate，返回计划（断言 200） */
-async function generate(app: FastifyInstance, date: string): Promise<JsonPlan> {
+async function generate(app: TestClient, date: string): Promise<JsonPlan> {
   const res = await app.inject({ method: 'POST', url: '/api/plan/generate', payload: { date } })
   expect(res.statusCode).toBe(200)
   return res.json().plan as JsonPlan
@@ -66,7 +65,7 @@ async function generate(app: FastifyInstance, date: string): Promise<JsonPlan> {
 
 /** POST 一条反馈，返回 body（断言 200） */
 async function postFeedback(
-  app: FastifyInstance,
+  app: TestClient,
   dishId: string,
   score: number,
 ): Promise<DishFeedback> {
@@ -76,7 +75,7 @@ async function postFeedback(
 }
 
 /** GET /api/feedback */
-async function getFeedback(app: FastifyInstance): Promise<DishFeedback[]> {
+async function getFeedback(app: TestClient): Promise<DishFeedback[]> {
   const res = await app.inject({ method: 'GET', url: '/api/feedback' })
   expect(res.statusCode).toBe(200)
   return (res.json() as { feedback: DishFeedback[] }).feedback
@@ -91,12 +90,15 @@ function dishIdsOf(plan: JsonPlan): string[] {
 const VEG_A = 'liang_ban_zi_gan_lan'
 const VEG_B = 'liang_ban_yang_cong'
 
-let app: FastifyInstance
+let app: TestClient
 let db: DatabaseSync
+let userId: string
 
-beforeEach(() => {
-  db = openDb(':memory:')
-  app = buildApp({ db })
+beforeEach(async () => {
+  const t = openTestDb()
+  db = t.db
+  userId = t.userId
+  app = await buildTestClient({ db: t.db, nickname: t.nickname })
 })
 
 afterEach(async () => {
@@ -162,7 +164,7 @@ describe('POST /api/feedback', () => {
       .get(VEG_A) as Record<string, unknown>
     expect(Number(row['n'])).toBe(1)
     // 与仓储层读到的结果一致
-    expect(listFeedback(db)).toEqual([{ dishId: VEG_A, score: 0 }])
+    expect(listFeedback(db, userId)).toEqual([{ dishId: VEG_A, score: 0 }])
   })
 })
 
@@ -224,9 +226,9 @@ describe('POST /api/feedback 参数校验', () => {
 describe('★ 反馈闭环：标记不吃的菜在整份食谱里彻底消失', () => {
   it('POST score=-1 后再生成，该菜在所有 meals 的所有 dishes 里都不出现', async () => {
     // 对照组：先在另一套干净的内存库里生成一次，拿到「本来会被选中」的三道菜
-    const control = freshApp()
-    await setupUser(control.app)
-    const controlPlan = await generate(control.app, '2026-10-14')
+    const control = await freshApp()
+    await setupUser(control)
+    const controlPlan = await generate(control, '2026-10-14')
     const banned = dishIdsOf(controlPlan).slice(0, 3)
     expect(banned).toHaveLength(3)
 
@@ -243,7 +245,7 @@ describe('★ 反馈闭环：标记不吃的菜在整份食谱里彻底消失', 
     // 只剔除了被标记的菜，其余仍是正常的一份计划
     expect(dishIdsOf(plan)).not.toEqual(banned)
 
-    await control.app.close()
+    await control.close()
   })
 })
 
@@ -260,10 +262,10 @@ describe('★ 喜欢加权生效', () => {
    * planner 全程无随机，同输入同输出，两组断言都是确定的。
    */
   it('同一槽位 reroll：把候选标成喜欢后会被选中，不标则选另一位', async () => {
-    const without = freshApp()
-    await setupUser(without.app)
-    await generate(without.app, '2026-10-14')
-    const resWithout = await without.app.inject({
+    const without = await freshApp()
+    await setupUser(without)
+    await generate(without, '2026-10-14')
+    const resWithout = await without.inject({
       method: 'POST',
       url: '/api/plan/2026-10-14/reroll-dish',
       payload: { mealIndex: 1, dishIndex: 2 },
@@ -272,12 +274,12 @@ describe('★ 喜欢加权生效', () => {
     const pickedWithout = resWithout.json().rerolled.dishId as string
     expect(pickedWithout).toBe(VEG_A)
 
-    const with_ = freshApp()
-    await setupUser(with_.app)
-    await generate(with_.app, '2026-10-14')
+    const with_ = await freshApp()
+    await setupUser(with_)
+    await generate(with_, '2026-10-14')
     // 先按原样生成（基线与对照组一致），再补一条「喜欢」
-    await postFeedback(with_.app, VEG_B, 1)
-    const resWith = await with_.app.inject({
+    await postFeedback(with_, VEG_B, 1)
+    const resWith = await with_.inject({
       method: 'POST',
       url: '/api/plan/2026-10-14/reroll-dish',
       payload: { mealIndex: 1, dishIndex: 2 },
@@ -288,25 +290,25 @@ describe('★ 喜欢加权生效', () => {
 
     expect(pickedWith).not.toBe(pickedWithout)
 
-    await without.app.close()
-    await with_.app.close()
+    await without.close()
+    await with_.close()
   })
 
   it('「一般」(0) 与无反馈同分，不会改变 reroll 结果', async () => {
-    const a = freshApp()
-    await setupUser(a.app)
-    await generate(a.app, '2026-10-14')
-    const ra = await a.app.inject({
+    const a = await freshApp()
+    await setupUser(a)
+    await generate(a, '2026-10-14')
+    const ra = await a.inject({
       method: 'POST',
       url: '/api/plan/2026-10-14/reroll-dish',
       payload: { mealIndex: 1, dishIndex: 2 },
     })
 
-    const b = freshApp()
-    await setupUser(b.app)
-    await generate(b.app, '2026-10-14')
-    await postFeedback(b.app, VEG_B, 0)
-    const rb = await b.app.inject({
+    const b = await freshApp()
+    await setupUser(b)
+    await generate(b, '2026-10-14')
+    await postFeedback(b, VEG_B, 0)
+    const rb = await b.inject({
       method: 'POST',
       url: '/api/plan/2026-10-14/reroll-dish',
       payload: { mealIndex: 1, dishIndex: 2 },
@@ -314,27 +316,29 @@ describe('★ 喜欢加权生效', () => {
 
     expect(ra.json().rerolled.dishId).toBe(rb.json().rerolled.dishId)
 
-    await a.app.close()
-    await b.app.close()
+    await a.close()
+    await b.close()
   })
 
   it('写入后 listFeedback 读回的分数与 API 返回一致（仓储口径对齐）', async () => {
     await postFeedback(app, VEG_A, 1)
     await postFeedback(app, VEG_B, -1)
     await postFeedback(app, 'zheng_qiu_kui', 0)
-    expect(listFeedback(db)).toEqual(await getFeedback(app))
+    expect(listFeedback(db, userId)).toEqual(await getFeedback(app))
   })
 })
 
 // ---------- 数据不污染 ----------
 
 describe('测试不污染数据目录', () => {
-  it('src/data 下没有生成 dishes.user.json', async () => {
-    const dish = loadAllDishes()[0]
+  it('收藏菜谱不落到 src/data —— 数据只在内存库里', async () => {
+    // 用户菜谱已经搬进 user_dishes 表，没有任何代码再往 src/data 写 dishes.user.json
+    const before = fs.readdirSync(path.join(process.cwd(), 'src', 'data')).sort()
+    const dish = loadAllDishes(db, userId)[0]
     expect(dish).toBeDefined()
     await postFeedback(app, dish!.id, 1)
     await setupUser(app)
     await generate(app, '2026-10-14')
-    expect(fs.existsSync(getUserDishPath())).toBe(false)
+    expect(fs.readdirSync(path.join(process.cwd(), 'src', 'data')).sort()).toEqual(before)
   })
 })

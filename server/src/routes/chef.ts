@@ -8,7 +8,6 @@ import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import { UnknownFoodError, calcNutrition } from '../core/nutrition.js'
 import { getFoodIndex, listFoodsBrief } from '../data/load.js'
-import { openDefaultDb } from '../db/sqlite.js'
 import {
   ChefError,
   cookFromFoods,
@@ -16,6 +15,7 @@ import {
   type ChefErrorCode,
 } from '../services/chefService.js'
 import { PlanError, replaceDishInPlanWithAi } from '../services/planService.js'
+import { requireUser } from '../services/authService.js'
 import type { Dish } from '../types.js'
 
 // ---------- 校验 schema（zod v4 顶层 API） ----------
@@ -103,34 +103,35 @@ function businessError(
 // ---------- 路由 ----------
 
 export interface ChefRoutesOptions {
+  /**
+   * 数据库连接。**必传**。
+   *
+   * 以前这里是可选的、不传就懒开默认库 —— 结果生产环境同时有两个连接指向同一个库文件。
+   * 那个懒加载已经删掉了：迁移期间两个连接并发改表会撞 SQLITE_SCHEMA，
+   * 而且预编译语句缓存会失效，症状很难查。
+   */
+  db: DatabaseSync
   /** 注入 cookFromFoods，测试用假实现；不传则用真实实现 */
   cook?: typeof cookFromFoods
   /** 注入 replaceDishInPlanWithAi，测试用假实现；不传则用真实实现 */
   replaceDish?: typeof replaceDishInPlanWithAi
-  /**
-   * 换菜路由要读写 diet_plans。app.ts 注册本插件时不传 db（那是 plan 路由的连接），
-   * 因此这里**懒加载默认库**：只有真的调换菜接口时才打开，避免白白开一个连接。
-   */
-  db?: DatabaseSync
 }
 
 export async function chefRoutes(
   app: FastifyInstance,
   opts: ChefRoutesOptions,
 ): Promise<void> {
+  const { db } = opts
   const cook = opts?.cook ?? cookFromFoods
   const replaceDish = opts?.replaceDish ?? replaceDishInPlanWithAi
-  let lazyDb: DatabaseSync | null = opts?.db ?? null
-  const db = (): DatabaseSync => {
-    if (lazyDb === null) lazyDb = openDefaultDb()
-    return lazyDb
-  }
 
-  // 食材清单：前端「AI 厨师」页按 8 类分组勾选用
+  // 食材清单：前端「AI 厨师」页按 8 类分组勾选用。
+  // 内置食材是全局的，跟用户无关，所以不需要 userId
   app.get('/api/foods', async () => ({ foods: listFoodsBrief() }))
 
   // 看料做菜
   app.post('/api/chef/cook', async (request, reply) => {
+    requireUser(request)
     const parsed = cookRequestSchema.safeParse(request.body)
     if (!parsed.success) return fail(reply, parsed.error)
 
@@ -149,8 +150,9 @@ export async function chefRoutes(
     }
   })
 
-  // 收藏 AI 生成的菜 → dishes.user.json
+  // 收藏 AI 生成的菜 → user_dishes 表（该用户自己的，别人看不见）
   app.post('/api/chef/save-dish', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = cookedDishSchema.safeParse(request.body)
     if (!parsed.success) return fail(reply, parsed.error)
 
@@ -163,7 +165,7 @@ export async function chefRoutes(
     }
 
     try {
-      const dish: Dish = saveCookedDish({ ...parsed.data, nutrition })
+      const dish: Dish = saveCookedDish(db, userId, { ...parsed.data, nutrition })
       return { dish }
     } catch (e) {
       return businessError(reply, e)
@@ -177,12 +179,14 @@ export async function chefRoutes(
    * plan 是写回后的当天计划。失败一律不落库 —— 当天计划保持原样。
    */
   app.post('/api/chef/replace-dish', async (request, reply) => {
+    const userId = requireUser(request)
     const parsed = replaceDishSchema.safeParse(request.body)
     if (!parsed.success) return fail(reply, parsed.error)
 
     try {
       const { result, plan } = await replaceDish(
-        db(),
+        db,
+        userId,
         parsed.data.date,
         parsed.data.mealIndex,
         parsed.data.dishIndex,

@@ -12,7 +12,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import Fastify, { type FastifyInstance } from 'fastify'
+import Fastify from 'fastify'
 import { z } from 'zod'
 import { LLMError, type CallLlmOptions } from '../../src/ai/llm.js'
 import { UnknownFoodError, calcNutrition } from '../../src/core/nutrition.js'
@@ -21,9 +21,12 @@ import {
   getFoodIndex,
   listFoodsBrief,
   loadAllDishes,
-  loadUserDishes,
 } from '../../src/data/load.js'
 import { chefRoutes } from '../../src/routes/chef.js'
+import { buildTestClient, openTestDb, type TestClient } from '../helpers/app.js'
+import { listUserDishes } from '../../src/db/repos/dishRepo.js'
+import { createUser } from '../../src/services/authService.js'
+import type { DatabaseSync } from 'node:sqlite'
 import {
   ChefError,
   ROLE_KCAL_RANGE,
@@ -35,10 +38,22 @@ import {
 } from '../../src/services/chefService.js'
 import type { Dish } from '../../src/types.js'
 
-// ---------- 真实数据目录里的用户菜谱文件（测试期间必须始终不存在） ----------
+// ---------- 真实数据目录里的 dishes.user.json（测试期间不得被改动） ----------
 
 const SRC_DATA_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'data')
 const REAL_USER_DISH_FILE = path.join(SRC_DATA_DIR, 'dishes.user.json')
+
+/**
+ * 这个文件的「快照」。用户菜谱已经搬进 user_dishes 表，代码里除了迁移那一次
+ * 之外不再读写它 —— 但文件本身可能还在（老库迁移完就能删）。
+ *
+ * 所以断言的应该是**没被改动**，而不是「不存在」：
+ * 后者会因为那份历史遗留文件一直在而恒假，等于一个永远失败的摆设断言。
+ */
+function snapshotUserDishFile(): string {
+  if (!fs.existsSync(REAL_USER_DISH_FILE)) return '(不存在)'
+  return fs.readFileSync(REAL_USER_DISH_FILE, 'utf8')
+}
 
 // ---------- 夹具 ----------
 
@@ -143,19 +158,27 @@ const ENV_KEYS = ['FITNESS_DATA_DIR', 'LLM_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL'
 const originalEnv = new Map<string, string | undefined>()
 
 let tmpDir = ''
-let app: FastifyInstance
+let realUserDishSnapshot = ''
+let app: TestClient
+let db: DatabaseSync
+let userId: string
 
-beforeEach(() => {
+beforeEach(async () => {
   for (const key of ENV_KEYS) originalEnv.set(key, process.env[key])
   // 未配置 LLM：测 NOT_CONFIGURED 时不需要真的清环境变量
   delete process.env.LLM_BASE_URL
   delete process.env.LLM_API_KEY
   delete process.env.LLM_MODEL
+  realUserDishSnapshot = snapshotUserDishFile()
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fitness-chef-'))
   process.env.FITNESS_DATA_DIR = tmpDir
   clearDishCache()
-  app = Fastify({ logger: false })
-  void app.register(chefRoutes, {})
+
+  const t = openTestDb()
+  db = t.db
+  userId = t.userId
+  // 走 buildApp（经夹具）而不是自己 register chefRoutes：鉴权 hook、错误处理都是真的
+  app = await buildTestClient({ db: t.db, nickname: t.nickname })
 })
 
 afterEach(async () => {
@@ -168,7 +191,8 @@ afterEach(async () => {
   originalEnv.clear()
   if (tmpDir !== '') fs.rmSync(tmpDir, { recursive: true, force: true })
   tmpDir = ''
-  expect(fs.existsSync(REAL_USER_DISH_FILE), 'src/data/dishes.user.json 不应被创建').toBe(false)
+  // 代码里已经不再有任何地方写这个文件了（用户菜谱搬进了 user_dishes 表）
+  expect(fs.existsSync(path.join(tmpDir, 'dishes.user.json'))).toBe(false)
 })
 
 // ================================================================
@@ -465,7 +489,7 @@ describe('cookFromFoods 未知食材重试', () => {
     expect((err as ChefError).missingIds).toEqual(['ji_chi_mo_gu'])
     expect(fake.calls).toHaveLength(2)
     // 只重试一次，不无限打接口
-    expect(loadUserDishes()).toEqual([])
+    expect(listUserDishes(db, userId)).toEqual([])
     expect(fs.existsSync(path.join(tmpDir, 'dishes.user.json'))).toBe(false)
   })
 
@@ -625,13 +649,12 @@ describe('cookFromFoods 热量兜底', () => {
 // saveCookedDish
 // ================================================================
 
-describe('saveCookedDish 落库', () => {
-  it('写入临时目录的 dishes.user.json 并能读回', () => {
+describe('saveCookedDish 落库（user_dishes 表）', () => {
+  it('写进该用户的表并能读回', () => {
     const cooked = makeCookedDish()
-    const saved = saveCookedDish(cooked)
+    const saved = saveCookedDish(db, userId, cooked)
 
-    expect(fs.existsSync(path.join(tmpDir, 'dishes.user.json'))).toBe(true)
-    const user = loadUserDishes()
+    const user = listUserDishes(db, userId)
     expect(user).toHaveLength(1)
     expect(user[0]?.id).toBe(saved.id)
     expect(user[0]?.name).toBe('测试菜')
@@ -640,25 +663,40 @@ describe('saveCookedDish 落库', () => {
     expect(user[0]?.tags).toEqual(['AI'])
   })
 
+  it('🔴 不再写 dishes.user.json（那个文件是全机共享的，等于谁收藏都能看见）', () => {
+    saveCookedDish(db, userId, makeCookedDish())
+    expect(fs.existsSync(path.join(tmpDir, 'dishes.user.json'))).toBe(false)
+  })
+
   it('存的是 Dish 结构，不含 nutrition 字段', () => {
-    saveCookedDish(makeCookedDish())
-    const raw = JSON.parse(fs.readFileSync(path.join(tmpDir, 'dishes.user.json'), 'utf8')) as Dish[]
-    expect(Object.keys(raw[0] ?? {})).not.toContain('nutrition')
+    saveCookedDish(db, userId, makeCookedDish())
+    const raw = db
+      .prepare('SELECT dish_json FROM user_dishes WHERE user_id = ?')
+      .get(userId) as { dish_json: string }
+    expect(Object.keys(JSON.parse(raw.dish_json) as object)).not.toContain('nutrition')
   })
 
   it('追加而不是覆盖：已有用户菜保留', () => {
-    saveCookedDish(makeCookedDish({ id: 'ai_first', name: '第一道' }))
-    saveCookedDish(makeCookedDish({ id: 'ai_second', name: '第二道' }))
-    expect(loadUserDishes().map((d) => d.id)).toEqual(['ai_first', 'ai_second'])
+    saveCookedDish(db, userId, makeCookedDish({ id: 'ai_first', name: '第一道' }))
+    saveCookedDish(db, userId, makeCookedDish({ id: 'ai_second', name: '第二道' }))
+    expect(listUserDishes(db, userId).map((d) => d.id)).toEqual(['ai_first', 'ai_second'])
+  })
+
+  it('🔴 A 收藏的菜 B 存不进去、也读不到', () => {
+    const other = createUser(db, '另一个人').id
+    saveCookedDish(db, userId, makeCookedDish({ id: 'ai_private', name: '我的私有菜' }))
+
+    expect(listUserDishes(db, other)).toEqual([])
+    expect(loadAllDishes(db, other).map((d) => d.id)).not.toContain('ai_private')
   })
 
   it('与已有用户菜 id 冲突 → 生成新 id，不静默覆盖', () => {
-    saveCookedDish(makeCookedDish({ id: 'ai_dup', name: '原菜' }))
-    const again = saveCookedDish(makeCookedDish({ id: 'ai_dup', name: '新菜' }))
+    saveCookedDish(db, userId, makeCookedDish({ id: 'ai_dup', name: '原菜' }))
+    const again = saveCookedDish(db, userId, makeCookedDish({ id: 'ai_dup', name: '新菜' }))
 
     expect(again.id).not.toBe('ai_dup')
     expect(again.id.startsWith('ai_dup')).toBe(true)
-    const user = loadUserDishes()
+    const user = listUserDishes(db, userId)
     expect(user).toHaveLength(2)
     expect(user.map((d) => d.name)).toEqual(['原菜', '新菜'])
   })
@@ -668,12 +706,11 @@ describe('saveCookedDish 落库', () => {
     expect(builtin).toBeDefined()
     if (builtin === undefined) return
 
-    const saved = saveCookedDish(makeCookedDish({ id: builtin.id, name: '我的同 id 菜' }))
+    const saved = saveCookedDish(db, userId, makeCookedDish({ id: builtin.id, name: '我的同 id 菜' }))
     expect(saved.id).not.toBe(builtin.id)
     expect(saved.name).toBe('我的同 id 菜')
 
-    clearDishCache()
-    const all = loadAllDishes()
+    const all = loadAllDishes(db, userId)
     expect(all.filter((d) => d.id === builtin.id)).toHaveLength(1)
     expect(all.filter((d) => d.id === builtin.id)[0]?.name).toBe(builtin.name)
     expect(all.filter((d) => d.name === '我的同 id 菜')).toHaveLength(1)
@@ -682,12 +719,14 @@ describe('saveCookedDish 落库', () => {
   it('配料含未知 foodId 时拒绝落库', () => {
     expect(() =>
       saveCookedDish(
+        db,
+        userId,
         makeCookedDish({
           ingredients: [{ foodId: 'ji_chi_mo_gu', amount: 100, unit: 'g' }],
         }),
       ),
     ).toThrow(UnknownFoodError)
-    expect(loadUserDishes()).toEqual([])
+    expect(listUserDishes(db, userId)).toEqual([])
   })
 })
 
@@ -734,8 +773,7 @@ describe('POST /api/chef/cook', () => {
       called.push(1)
       return []
     }
-    const local = Fastify()
-    void local.register(chefRoutes, { cook })
+    const local = await buildTestClient({ chef: { cook } })
     const res = await local.inject({
       method: 'POST',
       url: '/api/chef/cook',
@@ -784,12 +822,11 @@ describe('POST /api/chef/cook', () => {
     ] as const
 
     for (const [code, thrown] of cases) {
-      const local = Fastify()
-      void local.register(chefRoutes, {
-        cook: async () => {
+      const local = await buildTestClient({
+      chef: { cook: async () => {
           throw thrown
-        },
-      })
+        }, },
+    })
       const res = await local.inject({
         method: 'POST',
         url: '/api/chef/cook',
@@ -805,11 +842,10 @@ describe('POST /api/chef/cook', () => {
   })
 
   it('LLM_FAILED 时带上 llmKind，便于前端区分超时与未配置', async () => {
-    const local = Fastify()
-    void local.register(chefRoutes, {
-      cook: async () => {
+    const local = await buildTestClient({
+      chef: { cook: async () => {
         throw new ChefError('LLM_FAILED', 'LLM 请求超时', { llmKind: 'timeout' })
-      },
+      }, },
     })
     const res = await local.inject({
       method: 'POST',
@@ -821,10 +857,11 @@ describe('POST /api/chef/cook', () => {
   })
 
   it('成功 → 200 + { dishes }，且 nutrition 由后端算出', async () => {
-    const local = Fastify()
-    void local.register(chefRoutes, { cook: () => cookFromFoods([CHICKEN.id], {
-      callLlmImpl: constantLlm(GOOD_OUTPUT).impl,
-    }) })
+    const local = await buildTestClient({
+      chef: {
+        cook: () => cookFromFoods([CHICKEN.id], { callLlmImpl: constantLlm(GOOD_OUTPUT).impl }),
+      },
+    })
     const res = await local.inject({
       method: 'POST',
       url: '/api/chef/cook',
@@ -874,10 +911,10 @@ describe('POST /api/chef/save-dish', () => {
     expect(body.dish.id).toBe('ai_save_me')
     expect(body.dish.name).toBe('我的 AI 菜')
 
-    const user = loadUserDishes()
+    const user = listUserDishes(db, userId)
     expect(user).toHaveLength(1)
     expect(user[0]?.id).toBe('ai_save_me')
-    expect(fs.existsSync(REAL_USER_DISH_FILE)).toBe(false)
+    expect(snapshotUserDishFile()).toBe(realUserDishSnapshot)
   })
 
   it('id 冲突时生成新 id，不覆盖已有菜', async () => {
@@ -891,7 +928,7 @@ describe('POST /api/chef/save-dish', () => {
     const body = res.json() as { dish: Dish }
     expect(body.dish.id).not.toBe('ai_save_me')
 
-    const user = loadUserDishes()
+    const user = listUserDishes(db, userId)
     expect(user).toHaveLength(2)
     expect(user.map((d) => d.name)).toEqual(['我的 AI 菜', '我的 AI 菜（改）'])
   })
@@ -924,7 +961,7 @@ describe('POST /api/chef/save-dish', () => {
     })
     // 存进 Dish 的营养本来就由后端实时算（Dish 里根本没有 nutrition 字段），
     // 这里断言的是保存的配料能被食材表复算出真实营养，而不是 99999
-    const saved = loadUserDishes()[0]
+    const saved = listUserDishes(db, userId)[0]
     expect(saved).toBeDefined()
     if (saved === undefined) return
     expect(calcNutrition(saved.ingredients, getFoodIndex()).kcal).toBe(272)
@@ -950,7 +987,7 @@ describe('POST /api/chef/save-dish', () => {
       })
       expect(res.statusCode, JSON.stringify(payload)).toBe(400)
     }
-    expect(loadUserDishes()).toEqual([])
+    expect(listUserDishes(db, userId)).toEqual([])
   })
 
   it('配料含未知 foodId → 400 + UNKNOWN_FOOD，且不落库', async () => {
@@ -961,7 +998,7 @@ describe('POST /api/chef/save-dish', () => {
     })
     expect(res.statusCode).toBe(400)
     expect(res.json()).toMatchObject({ code: 'UNKNOWN_FOOD' })
-    expect(loadUserDishes()).toEqual([])
+    expect(listUserDishes(db, userId)).toEqual([])
   })
 })
 
@@ -971,10 +1008,8 @@ describe('POST /api/chef/save-dish', () => {
 
 describe('buildApp 已挂载 chef 路由', () => {
   /** 用真实 buildApp 跑一遍，确认 app.ts 的注册没漏 */
-  async function withBuiltApp(fn: (built: FastifyInstance) => Promise<void>): Promise<void> {
-    const { buildApp } = await import('../../src/app.js')
-    const { openDb } = await import('../../src/db/sqlite.js')
-    const built = buildApp({ db: openDb(':memory:') })
+  async function withBuiltApp(fn: (built: TestClient) => Promise<void>): Promise<void> {
+    const built = await buildTestClient()
     try {
       await fn(built)
     } finally {

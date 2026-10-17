@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { DatabaseSync } from 'node:sqlite'
-import { buildApp } from '../../src/app.js'
+import { buildTestClient, openTestDb, type TestClient } from '../helpers/app.js'
 import { openDb } from '../../src/db/sqlite.js'
 import { getPlan } from '../../src/db/repos/planRepo.js'
 import type { Profile, StructureRatio } from '../../src/types.js'
@@ -16,12 +16,15 @@ import type { Profile, StructureRatio } from '../../src/types.js'
 const DATE = '2026-10-14'
 const GONE: StructureRatio = { protein: 0.3, carb: 0.4, fat: 0.3 }
 
-let app: FastifyInstance
+let app: TestClient
 let db: DatabaseSync
+let userId: string
 
-beforeEach(() => {
-  db = openDb(':memory:')
-  app = buildApp({ db })
+beforeEach(async () => {
+  const t = openTestDb()
+  db = t.db
+  userId = t.userId
+  app = await buildTestClient({ db: t.db, nickname: t.nickname })
 })
 
 afterEach(async () => {
@@ -160,7 +163,7 @@ describe('阶段建议接线', () => {
 
     expect(mealsJsonOf()).not.toContain('suggestion')
     // 仓储读出来的计划同样没有（它只认落库的字段）
-    expect(getPlan(db, DATE)?.suggestion).toBeUndefined()
+    expect(getPlan(db, userId, DATE)?.suggestion).toBeUndefined()
   })
 
   it('force=false 命中已有计划时，返回结构与新生成一致（同样带 suggestion）', async () => {

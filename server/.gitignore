@@ -5,6 +5,8 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+# 迁移前的整库备份（改 schema 前拷一份，唯一退路）。整目录忽略。
+data/backup/
 coverage/
 src/data/dishes.user.json
 # 端到端验证用的临时数据目录（DATA_DIR=.e2e-data），整目录忽略

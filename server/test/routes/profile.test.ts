@@ -1,11 +1,11 @@
 /**
  * profile / weight 路由集成测试。
- * 用 openDb(':memory:') + buildApp({ db }) + app.inject，不起真实端口。
+ * 用 openTestDb()（内存库 + 已登录用户）+ buildTestClient + client.inject，不起真实端口。
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { FastifyInstance } from 'fastify'
-import { buildApp } from '../../src/app.js'
+import type { DatabaseSync } from 'node:sqlite'
+import { buildTestClient, openTestDb, type TestClient } from '../helpers/app.js'
 import { openDb } from '../../src/db/sqlite.js'
 
 // ---------- 测试夹具 ----------
@@ -52,10 +52,15 @@ const VALID_PROFILE = {
   goalWeightKg: 70,
 } as const
 
-let app: FastifyInstance
+let app: TestClient
+let db: DatabaseSync
+let userId: string
 
-beforeEach(() => {
-  app = buildApp({ db: openDb(':memory:') })
+beforeEach(async () => {
+  const t = openTestDb()
+  db = t.db
+  userId = t.userId
+  app = await buildTestClient({ db: t.db, nickname: t.nickname })
 })
 
 afterEach(async () => {

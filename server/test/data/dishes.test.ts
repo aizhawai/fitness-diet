@@ -10,14 +10,13 @@ import {
   getDishesForMeal,
   getFood,
   getFoodIndex,
-  getUserDishPath,
   listDishesBrief,
   loadAllDishes,
   loadDishes,
   loadFoods,
-  loadUserDishes,
-  saveUserDishes,
 } from '../../src/data/load.js'
+import { deleteUserDish, listUserDishes, saveUserDish } from '../../src/db/repos/dishRepo.js'
+import { openTestDb, type TestDb } from '../helpers/app.js'
 import { calcNutrition } from '../../src/core/nutrition.js'
 import type { Dish, DishRole, MealType } from '../../src/types.js'
 
@@ -288,10 +287,7 @@ describe('listDishesBrief', () => {
   })
 })
 
-describe('用户扩展菜谱 dishes.user.json', () => {
-  const originalDataDir = process.env.FITNESS_DATA_DIR
-  let tmpDir = ''
-
+describe('用户收藏菜谱（user_dishes 表）', () => {
   const makeDish = (id: string, name: string): Dish => ({
     id,
     name,
@@ -302,90 +298,99 @@ describe('用户扩展菜谱 dishes.user.json', () => {
     tags: ['测试'],
   })
 
+  let t: TestDb
+
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fitness-dishes-'))
-    process.env.FITNESS_DATA_DIR = tmpDir
-    clearDishCache()
+    t = openTestDb()
   })
 
   afterEach(() => {
-    clearDishCache()
-    if (originalDataDir === undefined) delete process.env.FITNESS_DATA_DIR
-    else process.env.FITNESS_DATA_DIR = originalDataDir
-    if (tmpDir !== '') fs.rmSync(tmpDir, { recursive: true, force: true })
-    tmpDir = ''
+    t.close()
   })
 
-  it('getUserDishPath 指向临时目录下的 dishes.user.json', () => {
-    expect(getUserDishPath()).toBe(path.join(tmpDir, 'dishes.user.json'))
-  })
-
-  it('文件不存在时 loadUserDishes 返回 []（正常情况，不抛错）', () => {
-    expect(fs.existsSync(getUserDishPath())).toBe(false)
-    expect(loadUserDishes()).toEqual([])
-  })
-
-  it('saveUserDishes 落盘后可被 loadUserDishes 读回', () => {
-    const custom = [makeDish('my_test_dish', '我的测试菜')]
-    saveUserDishes(custom)
-    expect(fs.existsSync(getUserDishPath())).toBe(true)
-    expect(loadUserDishes()).toEqual(custom)
-  })
-
-  it('loadAllDishes 合并内置与用户菜谱', () => {
-    saveUserDishes([makeDish('my_test_dish', '我的测试菜')])
-    const all = loadAllDishes()
-    expect(all.length).toBe(dishes.length + 1)
-    expect(all.map((d) => d.id)).toContain('my_test_dish')
-    // 无用户文件时等于内置全集
-    clearDishCache()
-    delete process.env.FITNESS_DATA_DIR
+  it('不传 db/userId 时只返回内置菜谱', () => {
     expect(loadAllDishes().length).toBe(dishes.length)
   })
 
+  it('新用户没有任何收藏 → 只看到内置菜谱', () => {
+    expect(loadAllDishes(t.db, t.userId).length).toBe(dishes.length)
+    expect(listUserDishes(t.db, t.userId)).toEqual([])
+  })
+
+  it('收藏后 loadAllDishes 合并内置与该用户的菜', () => {
+    saveUserDish(t.db, t.userId, makeDish('my_test_dish', '我的测试菜'))
+    const all = loadAllDishes(t.db, t.userId)
+    expect(all.length).toBe(dishes.length + 1)
+    expect(all.map((d) => d.id)).toContain('my_test_dish')
+  })
+
+  it('落库后可原样读回', () => {
+    const custom = makeDish('my_test_dish', '我的测试菜')
+    saveUserDish(t.db, t.userId, custom)
+    expect(listUserDishes(t.db, t.userId)).toEqual([custom])
+  })
+
+  it('🔴 A 收藏的菜 B 看不见（改造前是全机共享的 dishes.user.json）', () => {
+    saveUserDish(t.db, t.userId, makeDish('only_mine', '只有我收藏的菜'))
+    const other = t.addUser('另一个人')
+
+    expect(loadAllDishes(t.db, t.userId).map((d) => d.id)).toContain('only_mine')
+    expect(loadAllDishes(t.db, other).map((d) => d.id)).not.toContain('only_mine')
+    expect(listUserDishes(t.db, other)).toEqual([])
+  })
+
   it('用户菜 id 与内置冲突时以用户为准且去重', () => {
-    const override = makeDish(SPOT_IDS.rice, '我的杂粮饭')
-    saveUserDishes([override])
-    const all = loadAllDishes()
+    saveUserDish(t.db, t.userId, makeDish(SPOT_IDS.rice, '我的杂粮饭'))
+    const all = loadAllDishes(t.db, t.userId)
     expect(all.length).toBe(dishes.length)
     const matched = all.filter((d) => d.id === SPOT_IDS.rice)
     expect(matched.length).toBe(1)
     expect(matched[0]?.name).toBe('我的杂粮饭')
-    expect(getDish(SPOT_IDS.rice)?.name).toBe('我的杂粮饭')
-    expect(listDishesBrief().find((b) => b.id === SPOT_IDS.rice)?.name).toBe('我的杂粮饭')
+    expect(getDish(SPOT_IDS.rice, t.db, t.userId)?.name).toBe('我的杂粮饭')
+    expect(listDishesBrief(t.db, t.userId).find((b) => b.id === SPOT_IDS.rice)?.name).toBe('我的杂粮饭')
   })
 
-  it('用户文件 JSON 非法时抛出含路径的清晰错误', () => {
-    fs.mkdirSync(tmpDir, { recursive: true })
-    fs.writeFileSync(getUserDishPath(), '{ 不是合法 JSON', 'utf8')
-    let err: unknown
-    try {
-      loadUserDishes()
-    } catch (e) {
-      err = e
-    }
-    expect(err).toBeInstanceOf(Error)
-    const msg = (err as Error).message
-    expect(msg).toContain('dishes.user.json')
-    expect(msg.replace(/\\/g, '/')).toContain(tmpDir.replace(/\\/g, '/'))
+  it('同一道菜重复收藏是覆盖，不会出现两行', () => {
+    saveUserDish(t.db, t.userId, makeDish('dup', '第一次'))
+    saveUserDish(t.db, t.userId, makeDish('dup', '第二次'))
+    expect(listUserDishes(t.db, t.userId)).toHaveLength(1)
+    expect(listUserDishes(t.db, t.userId)[0]?.name).toBe('第二次')
   })
 
-  it('用户文件顶层不是数组时报错', () => {
-    fs.mkdirSync(tmpDir, { recursive: true })
-    fs.writeFileSync(getUserDishPath(), '{"id":"x"}', 'utf8')
-    expect(() => loadUserDishes()).toThrow(/dishes\.user\.json/)
+  it('db 里那一行是脏 JSON 时跳过它，其余照常读出', () => {
+    saveUserDish(t.db, t.userId, makeDish('good', '好的那道'))
+    t.db.prepare('INSERT INTO user_dishes (user_id, dish_id, dish_json) VALUES (?, ?, ?)').run(
+      t.userId,
+      'bad',
+      '{ 不是合法 JSON',
+    )
+    const got = listUserDishes(t.db, t.userId)
+    expect(got.map((d) => d.id)).toEqual(['good'])
+  })
+
+  it('取消收藏只影响自己那一份', () => {
+    saveUserDish(t.db, t.userId, makeDish('shared_id', '我收藏的'))
+    const other = t.addUser('另一个人')
+    saveUserDish(t.db, other, makeDish('shared_id', '他收藏的'))
+
+    expect(deleteUserDish(t.db, t.userId, 'shared_id')).toBe(true)
+    expect(listUserDishes(t.db, t.userId)).toEqual([])
+    expect(listUserDishes(t.db, other).map((d) => d.name)).toEqual(['他收藏的'])
   })
 })
 
 describe('测试不污染真实数据目录', () => {
-  it('src/data 下不存在 dishes.user.json', () => {
-    const realUserPath = path.join(process.cwd(), 'src', 'data', 'dishes.user.json')
-    expect(fs.existsSync(realUserPath)).toBe(false)
-  })
-
-  it('内置数据包只含 dishes.json 与 foods.json', () => {
-    const files = fs.readdirSync(path.join(process.cwd(), 'src', 'data'))
-    expect(files.filter((f) => f.endsWith('.json')).sort()).toEqual(['dishes.json', 'foods.json'])
+  it('src/data 下不会出现任何新的 json 文件', () => {
+    // dishes.user.json 是**迁移前的遗留**：用户收藏的菜谱已经搬进 user_dishes 表，
+    // 代码里除了迁移那一次之外不再读写它。真库迁移完之后它可以直接删掉，
+    // 所以这个断言在「删掉前后」都成立 —— 它守的是「别再往内置数据目录里写东西」。
+    const files = fs
+      .readdirSync(path.join(process.cwd(), 'src', 'data'))
+      .filter((f) => f.endsWith('.json'))
+    const allowed = new Set(['dishes.json', 'foods.json', 'dishes.user.json'])
+    expect(files.filter((f) => !allowed.has(f))).toEqual([])
+    expect(files).toContain('dishes.json')
+    expect(files).toContain('foods.json')
     expect(loadFoods().length).toBeGreaterThan(0)
   })
 })

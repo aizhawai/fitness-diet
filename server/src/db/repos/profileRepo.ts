@@ -1,8 +1,11 @@
 /**
- * 用户档案仓储。profile 是单行表（id = 1），只存一份档案。
+ * 用户档案仓储。profile 以 user_id 为主键，一个用户一份档案。
  *
  * 注意 node:sqlite 不能绑定 undefined，可空字段必须显式传 null。
  * 返回对象是手工构造的普通对象，不暴露 null-prototype 的行对象。
+ *
+ * ⚠️ 每个函数都**必须**带 userId。改造前这里是 `WHERE id = 1` 的单行表，
+ * 全机只有一份档案 —— 换成按 user_id 定位后，任何漏传都会变成「读到别人的档案」。
  */
 
 import type { DatabaseSync } from 'node:sqlite'
@@ -55,22 +58,22 @@ function toProfile(row: Record<string, unknown>): Profile {
   }
 }
 
-/** 读取档案，无档案返回 null */
-export function getProfile(db: DatabaseSync): Profile | null {
-  const row = db.prepare('SELECT * FROM profile WHERE id = 1').get() as
+/** 读取某人的档案，无档案返回 null */
+export function getProfile(db: DatabaseSync, userId: string): Profile | null {
+  const row = db.prepare('SELECT * FROM profile WHERE user_id = ?').get(userId) as
     | Record<string, unknown>
     | undefined
   return row ? toProfile(row) : null
 }
 
-/** 全量保存档案（UPSERT id = 1），返回保存后的档案 */
-export function saveProfile(db: DatabaseSync, profile: Profile): Profile {
+/** 全量保存档案（UPSERT user_id），返回保存后的档案 */
+export function saveProfile(db: DatabaseSync, userId: string, profile: Profile): Profile {
   db.prepare(
     `INSERT INTO profile
-       (id, sex, birthday, height_cm, activity_level, meal_mode, diet_structure,
+       (user_id, sex, birthday, height_cm, activity_level, meal_mode, diet_structure,
         custom_ratio, deficit_kcal, goal_weight_kg)
-     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
        sex = excluded.sex,
        birthday = excluded.birthday,
        height_cm = excluded.height_cm,
@@ -81,6 +84,7 @@ export function saveProfile(db: DatabaseSync, profile: Profile): Profile {
        deficit_kcal = excluded.deficit_kcal,
        goal_weight_kg = excluded.goal_weight_kg`,
   ).run(
+    userId,
     profile.sex,
     profile.birthday,
     profile.heightCm,
@@ -92,17 +96,18 @@ export function saveProfile(db: DatabaseSync, profile: Profile): Profile {
     profile.goalWeightKg ?? null,
   )
 
-  const saved = getProfile(db)
+  const saved = getProfile(db, userId)
   // 刚写完必然读得到，这里只是兜底，避免返回 null 让调用方崩
   return saved ?? { ...profile }
 }
 
-/** 局部更新档案字段；档案不存在返回 null */
+/** 局部更新某人的档案字段；档案不存在返回 null */
 export function updateProfileFields(
   db: DatabaseSync,
+  userId: string,
   patch: Partial<Profile>,
 ): Profile | null {
-  const current = getProfile(db)
+  const current = getProfile(db, userId)
   if (!current) return null
 
   // 显式列出可更新列，避免拼接 SQL
@@ -126,8 +131,9 @@ export function updateProfileFields(
 
   if (setters.length === 0) return current
 
-  db.prepare(`UPDATE profile SET ${setters.join(', ')} WHERE id = 1`).run(...params)
-  return getProfile(db)
+  // user_id 放在参数最后：setters 是动态拼的，位置对不上就是数据串行
+  db.prepare(`UPDATE profile SET ${setters.join(', ')} WHERE user_id = ?`).run(...params, userId)
+  return getProfile(db, userId)
 }
 
 /** 取实际生效的宏量占比：自定义优先，否则用 dietStructure 的内置值 */

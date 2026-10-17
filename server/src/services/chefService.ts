@@ -5,10 +5,12 @@
  * **营养数字一律由后端食材表计算** —— 因此 aiDishSchema 里没有任何
  * kcal / protein_g / carb_g / fat_g 字段，模型编的数字连 schema 都进不来。
  *
- * 本层允许有 IO（网络 / 文件），与 core/ 的纯函数要求不冲突；
- * 营养计算仍委托给 core/nutrition.js，食材表与菜谱读写委托给 data/load.js。
+ * 本层允许有 IO（网络 / 库），与 core/ 的纯函数要求不冲突；
+ * 营养计算仍委托给 core/nutrition.js，食材表与菜谱读取委托给 data/load.js，
+ * 用户收藏菜谱的读写委托给 db/repos/dishRepo.js。
  */
 
+import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import {
   LLMError,
@@ -20,14 +22,8 @@ import {
 } from '../ai/llm.js'
 import { UnknownFoodError, assertFoodsExist, calcNutrition } from '../core/nutrition.js'
 import type { PlannedDish } from '../core/planner.js'
-import {
-  clearDishCache,
-  getFoodIndex,
-  getFoodsByCategory,
-  loadAllDishes,
-  loadUserDishes,
-  saveUserDishes,
-} from '../data/load.js'
+import { getFoodIndex, getFoodsByCategory, loadAllDishes } from '../data/load.js'
+import { saveUserDish } from '../db/repos/dishRepo.js'
 import type {
   Dish,
   DishFeedback,
@@ -441,18 +437,21 @@ export async function cookFromFoods(foodIds: string[], opts: CookOptions = {}): 
 }
 
 /**
- * 把 AI 生成的菜存进 dishes.user.json（追加，不覆盖别人的菜）。
- * id 与已有菜冲突时生成新 id，绝不静默覆盖。
+ * 把 AI 生成的菜存进 **该用户** 的 user_dishes 表（追加，不覆盖已有的菜）。
+ * id 与他已有的菜冲突时生成新 id，绝不静默覆盖。
+ *
+ * 🔴 改造前这里是往 `dishes.user.json` 里追加 —— 那个文件**全机共享一份**，
+ * A 收藏的菜 B 打开就能看见、点「换菜」还可能被推荐到。搬进表之后按 user_id 存，
+ * 才算真正隔离。
  */
-export function saveCookedDish(dish: CookedDish): Dish {
+export function saveCookedDish(db: DatabaseSync, userId: string, dish: CookedDish): Dish {
   const foodIndex = getFoodIndex()
   const ingredients = dish.ingredients.map((i) => ({ ...i }))
   // 配料必须能落到食材表，否则拒绝落库
   assertFoodsExist(ingredients, foodIndex)
 
-  // 环境变量可能刚被改过（测试），先清缓存保证看到最新的菜谱全集
-  clearDishCache()
-  const taken = new Set(loadAllDishes().map((d) => d.id))
+  // 只跟「内置 + 该用户已有的」比 id，别的用户收藏的菜跟他无关
+  const taken = new Set(loadAllDishes(db, userId).map((d) => d.id))
   const baseId = dish.id.trim() === '' ? `ai_${dishSlug(dish.name)}` : dish.id.trim()
   let finalId = baseId
   let n = 2
@@ -470,7 +469,7 @@ export function saveCookedDish(dish: CookedDish): Dish {
     steps: dish.steps,
     tags: [...dish.tags],
   }
-  saveUserDishes([...loadUserDishes(), record])
+  saveUserDish(db, userId, record)
   return record
 }
 

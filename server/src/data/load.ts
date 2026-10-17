@@ -11,8 +11,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { DatabaseSync } from 'node:sqlite'
 import type { Dish, DishRole, Food, FoodCategory, MealType } from '../types.js'
 import { calcNutrition } from '../core/nutrition.js'
+import { listUserDishes } from '../db/repos/dishRepo.js'
 
 /** 当前模块所在目录（src 直跑时是 src/data，dist 直跑时是 dist/src/data） */
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -176,41 +178,20 @@ export function listFoodsBrief(): FoodBrief[] {
 
 // ---------- 菜谱 ----------
 
-/** 用户扩展菜谱文件名（与内置 dishes.json 同目录） */
-const USER_DISH_FILE = 'dishes.user.json'
-
-/** 内置菜谱（缓存） */
+/**
+ * 内置菜谱（dishes.json）缓存。
+ *
+ * ⚠️ 这里**只缓存内置菜谱**，用户自定义菜在 user_dishes 表里，是**按用户**查的。
+ * 改造前这里还有个 allDishesCache 缓存「内置 + 共享文件里的用户菜」——
+ * 模块级全局、所有人共用一份，A 收藏的菜 B 也看得见。这个缓存已经删掉。
+ */
 let dishesCache: Dish[] | null = null
-/** id → Dish 索引（懒建，带缓存） */
+/** 内置 id → Dish 索引（懒建，带缓存） */
 let dishIndexCache: Map<string, Dish> | null = null
-/** 'meal|role' → Dish[] 候选（带缓存） */
+/** 'meal|role' → Dish[] 候选（**仅内置**，带缓存） */
 let roleCache: Map<string, Dish[]> | null = null
-/** MealType → Dish[]（带缓存） */
+/** MealType → Dish[]（**仅内置**，带缓存） */
 let mealCache: Map<MealType, Dish[]> | null = null
-/** 内置 + 用户合并后的全集（带缓存） */
-let allDishesCache: Dish[] | null = null
-
-/** 缓存住内置数据包所在目录（dishes.json 所在目录） */
-let dataDirCache: string | null = null
-
-/**
- * 数据目录：默认与 dishes.json 同目录（src/ 与 dist/ 直跑都能定位到 src/data）。
- * 测试可用环境变量 FITNESS_DATA_DIR 指向临时目录，避免写入真实数据目录。
- */
-function getDataDir(): string {
-  const override = process.env['FITNESS_DATA_DIR']
-  if (override !== undefined && override.trim() !== '') return path.resolve(override.trim())
-  if (dataDirCache === null) dataDirCache = path.dirname(resolveDataFile('dishes.json'))
-  return dataDirCache
-}
-
-/**
- * 用户扩展菜谱文件 `dishes.user.json` 的绝对路径。
- * 文件可以不存在（首次使用时的正常情况）。
- */
-export function getUserDishPath(): string {
-  return path.join(getDataDir(), USER_DISH_FILE)
-}
 
 /** 读取并解析一个 JSON 数据包，统一处理读盘失败 / 非法 JSON / 顶层非数组 */
 function readJsonArray<T>(file: string, label: string): T[] {
@@ -242,61 +223,45 @@ export function loadDishes(): Dish[] {
   return dishesCache
 }
 
-/**
- * 读取用户扩展菜谱。
- * 文件不存在返回 []（正常情况）；JSON 非法时抛出含文件路径的清晰错误。
- */
-export function loadUserDishes(): Dish[] {
-  const file = getUserDishPath()
-  if (!fs.existsSync(file)) return []
-  return readJsonArray<Dish>(file, '用户菜谱文件')
-}
-
-/** 覆式写入用户扩展菜谱（自动建目录），写完清空菜谱相关缓存 */
-export function saveUserDishes(dishes: Dish[]): void {
-  const file = getUserDishPath()
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, `${JSON.stringify(dishes, null, 2)}\n`, 'utf8')
-  clearDishCache()
-}
-
-/** 清空全部菜谱缓存（写入用户菜谱或测试隔离时调用） */
+/** 清空内置菜谱缓存（测试隔离用） */
 export function clearDishCache(): void {
   dishesCache = null
   dishIndexCache = null
   roleCache = null
   mealCache = null
-  allDishesCache = null
 }
 
 /**
- * 全部菜谱 = 内置 dishes.json + 用户 dishes.user.json。
+ * 全部菜谱 = 内置 dishes.json + **该用户**在 user_dishes 表里收藏的菜。
  * id 冲突时以用户为准并去重（Map.set 覆盖，顺序保持内置时的位置）。
+ *
+ * ⚠️ **不传 db / userId 就只返回内置菜谱。**
+ * planner 的纯算法单测与一次性脚本不需要用户上下文，这样它们不用建库；
+ * 而业务路径必须显式传，否则会静默丢掉该用户的收藏菜 —— 所以这是必填项而不是可选优化。
+ *
+ * 合并结果**不做缓存**：用户菜在库里随时可能变（收藏、删除），
+ * 缓存就得按 userId 建索引并在写入时精确失效，那比多查一次库容易出错得多。
+ * 内置那份仍然缓存，那才是解析 164 道菜 JSON 的开销所在。
  */
-export function loadAllDishes(): Dish[] {
-  if (allDishesCache !== null) return allDishesCache
-
+export function loadAllDishes(db?: DatabaseSync, userId?: string): Dish[] {
   const builtin = loadDishes()
-  const user = loadUserDishes()
-  if (user.length === 0) {
-    allDishesCache = builtin
-    return allDishesCache
-  }
+  if (db === undefined || userId === undefined) return builtin
+
+  const user = listUserDishes(db, userId)
+  if (user.length === 0) return builtin
 
   const map = new Map<string, Dish>()
   for (const dish of builtin) map.set(dish.id, dish)
   for (const dish of user) map.set(dish.id, dish)
-
-  allDishesCache = [...map.values()]
-  return allDishesCache
+  return [...map.values()]
 }
 
-/** 构建 id → Dish 索引；内置 id 重复时抛错并指出重复的 id */
-function buildDishIndex(): Map<string, Dish> {
+/** 构建 id → Dish 索引；id 重复时抛错并指出重复的 id */
+function buildDishIndex(dishes: readonly Dish[]): Map<string, Dish> {
   const map = new Map<string, Dish>()
   const duplicates = new Set<string>()
 
-  for (const dish of loadAllDishes()) {
+  for (const dish of dishes) {
     if (map.has(dish.id)) duplicates.add(dish.id)
     map.set(dish.id, dish)
   }
@@ -310,15 +275,22 @@ function buildDishIndex(): Map<string, Dish> {
   return map
 }
 
-/** 按 id 索引全部菜谱（内置 + 用户），带缓存 */
-export function getDishIndex(): Map<string, Dish> {
-  if (dishIndexCache === null) dishIndexCache = buildDishIndex()
-  return dishIndexCache
+/**
+ * 按 id 索引菜谱。
+ *
+ * 只查内置那层走缓存；带上用户身份时每次重建（与 loadAllDishes 同理）。
+ */
+export function getDishIndex(db?: DatabaseSync, userId?: string): Map<string, Dish> {
+  if (db === undefined || userId === undefined) {
+    if (dishIndexCache === null) dishIndexCache = buildDishIndex(loadDishes())
+    return dishIndexCache
+  }
+  return buildDishIndex(loadAllDishes(db, userId))
 }
 
 /** 按 id 取单个菜谱；不存在返回 undefined */
-export function getDish(id: string): Dish | undefined {
-  return getDishIndex().get(id)
+export function getDish(id: string, db?: DatabaseSync, userId?: string): Dish | undefined {
+  return getDishIndex(db, userId).get(id)
 }
 
 /** role 再 id 排序，保证候选顺序确定（不依赖 dishes.json 的原始顺序） */
@@ -329,30 +301,47 @@ function compareDish(a: Dish, b: Dish): number {
 
 /**
  * 取「该餐次 + 该角色」的候选菜谱，按 role 再 id 排序保证确定性。
- * 缓存命中返回同一实例，调用方不要修改。
+ * 带用户身份时不走缓存。
  */
-export function getDishesByRole(meal: MealType, role: DishRole): Dish[] {
-  if (roleCache === null) roleCache = new Map<string, Dish[]>()
-  const key = `${meal}|${role}`
-  const cached = roleCache.get(key)
-  if (cached !== undefined) return cached
+export function getDishesByRole(
+  meal: MealType,
+  role: DishRole,
+  db?: DatabaseSync,
+  userId?: string,
+): Dish[] {
+  const filter = (list: readonly Dish[]): Dish[] =>
+    list.filter((d) => d.role === role && d.meals.includes(meal)).sort(compareDish)
 
-  const list = loadAllDishes()
-    .filter((d) => d.role === role && d.meals.includes(meal))
-    .sort(compareDish)
-  roleCache.set(key, list)
-  return list
+  if (db === undefined || userId === undefined) {
+    if (roleCache === null) roleCache = new Map<string, Dish[]>()
+    const key = `${meal}|${role}`
+    const cached = roleCache.get(key)
+    if (cached !== undefined) return cached
+    const list = filter(loadDishes())
+    roleCache.set(key, list)
+    return list
+  }
+  return filter(loadAllDishes(db, userId))
 }
 
 /** 取某一餐次的全部候选菜谱，按 role 再 id 排序 */
-export function getDishesForMeal(meal: MealType): Dish[] {
-  if (mealCache === null) mealCache = new Map<MealType, Dish[]>()
-  const cached = mealCache.get(meal)
-  if (cached !== undefined) return cached
+export function getDishesForMeal(
+  meal: MealType,
+  db?: DatabaseSync,
+  userId?: string,
+): Dish[] {
+  const filter = (list: readonly Dish[]): Dish[] =>
+    list.filter((d) => d.meals.includes(meal)).sort(compareDish)
 
-  const list = loadAllDishes().filter((d) => d.meals.includes(meal)).sort(compareDish)
-  mealCache.set(meal, list)
-  return list
+  if (db === undefined || userId === undefined) {
+    if (mealCache === null) mealCache = new Map<MealType, Dish[]>()
+    const cached = mealCache.get(meal)
+    if (cached !== undefined) return cached
+    const list = filter(loadDishes())
+    mealCache.set(meal, list)
+    return list
+  }
+  return filter(loadAllDishes(db, userId))
 }
 
 /** 前端菜谱列表用的精简结构：热量实时算，不缓存 */
@@ -365,10 +354,10 @@ export interface DishBrief {
   kcal: number
 }
 
-/** 生成精简菜谱列表（含用户扩展菜谱），kcal 实时计算 */
-export function listDishesBrief(): DishBrief[] {
+/** 生成精简菜谱列表（含该用户收藏的菜），kcal 实时计算 */
+export function listDishesBrief(db?: DatabaseSync, userId?: string): DishBrief[] {
   const foodIndex = getFoodIndex()
-  return loadAllDishes().map((d) => ({
+  return loadAllDishes(db, userId).map((d) => ({
     id: d.id,
     name: d.name,
     role: d.role,

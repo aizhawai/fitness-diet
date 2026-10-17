@@ -1,5 +1,5 @@
 /**
- * 每日食谱仓储。diet_plans 按 date 唯一，一天一条，重复生成走 UPSERT。
+ * 每日食谱仓储。diet_plans 按 (user_id, date) 唯一，一天一条，重复生成走 UPSERT。
  *
  * meals_json 存 planner 的 PlannedMeal[]（含菜品、配料、单菜营养与每餐汇总），
  * 进仓储时 JSON.stringify，出仓储时 JSON.parse 成结构化数据 —— 业务层拿到的永远是对象。
@@ -9,6 +9,8 @@
  * `{"meals":[...],"aiMeals":[...]}`。两种形态读出来都一样，老数据不受影响。
  *
  * 注意：
+ * - ⚠️ 每个函数都**必须**带 userId。改造前 listPlans 是**无 WHERE 的全表 SELECT**，
+ *   历史页会把所有人的食谱列出来。
  * - node:sqlite 不能绑定 undefined，limit 缺省时要分开拼 SQL。
  * - 返回行是 null-prototype 对象，这里统一转成手工构造的普通对象。
  */
@@ -165,18 +167,19 @@ function encodeMealsJson(dayPlan: DayPlan, aiMeals?: MealType[]): string {
   return JSON.stringify({ meals: dayPlan.meals, aiMeals })
 }
 
-/** 保存（或覆盖）某天的计划，返回保存后的计划 */
+/** 保存（或覆盖）某天某人的计划，返回保存后的计划 */
 export function savePlan(
   db: DatabaseSync,
+  userId: string,
   date: string,
   dayPlan: DayPlan,
   source: PlanSource,
   aiMeals?: MealType[],
 ): StoredPlan {
   db.prepare(
-    `INSERT INTO diet_plans (date, total_kcal, protein_g, carb_g, fat_g, meals_json, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(date) DO UPDATE SET
+    `INSERT INTO diet_plans (user_id, date, total_kcal, protein_g, carb_g, fat_g, meals_json, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id, date) DO UPDATE SET
        total_kcal = excluded.total_kcal,
        protein_g = excluded.protein_g,
        carb_g = excluded.carb_g,
@@ -184,6 +187,7 @@ export function savePlan(
        meals_json = excluded.meals_json,
        source = excluded.source`,
   ).run(
+    userId,
     date,
     dayPlan.total.kcal,
     dayPlan.total.protein_g,
@@ -193,7 +197,7 @@ export function savePlan(
     normalizeSource(source),
   )
 
-  const saved = getPlan(db, date)
+  const saved = getPlan(db, userId, date)
   // 刚写完必然读得到，这里兜底避免返回 null 让调用方崩
   const fallback: StoredPlan = {
     date,
@@ -206,39 +210,43 @@ export function savePlan(
   return saved ?? fallback
 }
 
-/** 读某天的计划，无记录返回 null */
-export function getPlan(db: DatabaseSync, date: string): StoredPlan | null {
-  const row = db.prepare(`SELECT ${COLUMNS} FROM diet_plans WHERE date = ?`).get(date) as
-    | Record<string, unknown>
-    | undefined
+/** 读某人某天的计划，无记录返回 null */
+export function getPlan(db: DatabaseSync, userId: string, date: string): StoredPlan | null {
+  const row = db
+    .prepare(`SELECT ${COLUMNS} FROM diet_plans WHERE user_id = ? AND date = ?`)
+    .get(userId, date) as Record<string, unknown> | undefined
   return row ? toPlan(row) : null
 }
 
-/** 按日期倒序列出计划，可选条数上限 */
-export function listPlans(db: DatabaseSync, limit?: number): StoredPlan[] {
+/** 按日期倒序列出**该用户**的计划，可选条数上限 */
+export function listPlans(db: DatabaseSync, userId: string, limit?: number): StoredPlan[] {
   const hasLimit = typeof limit === 'number' && Number.isFinite(limit)
   const sql = hasLimit
-    ? `SELECT ${COLUMNS} FROM diet_plans ORDER BY date DESC LIMIT ?`
-    : `SELECT ${COLUMNS} FROM diet_plans ORDER BY date DESC`
+    ? `SELECT ${COLUMNS} FROM diet_plans WHERE user_id = ? ORDER BY date DESC LIMIT ?`
+    : `SELECT ${COLUMNS} FROM diet_plans WHERE user_id = ? ORDER BY date DESC`
   const stmt = db.prepare(sql)
   // undefined 不能绑定，有上限时必须显式传数字
-  const rows = (hasLimit ? stmt.all(limit) : stmt.all()) as Array<Record<string, unknown>>
+  const rows = (hasLimit ? stmt.all(userId, limit) : stmt.all(userId)) as Array<
+    Record<string, unknown>
+  >
   return rows.map(toPlan)
 }
 
 /**
- * 取 date >= sinceDate 的计划（升序），供 planner 计算「最近用过哪些菜」。
+ * 取该用户 date >= sinceDate 的计划（升序），供 planner 计算「最近用过哪些菜」。
  * 上界由调用方按需要自行过滤。
  */
-export function listPlansSince(db: DatabaseSync, sinceDate: string): StoredPlan[] {
+export function listPlansSince(db: DatabaseSync, userId: string, sinceDate: string): StoredPlan[] {
   const rows = db
-    .prepare(`SELECT ${COLUMNS} FROM diet_plans WHERE date >= ? ORDER BY date ASC`)
-    .all(sinceDate) as Array<Record<string, unknown>>
+    .prepare(
+      `SELECT ${COLUMNS} FROM diet_plans WHERE user_id = ? AND date >= ? ORDER BY date ASC`,
+    )
+    .all(userId, sinceDate) as Array<Record<string, unknown>>
   return rows.map(toPlan)
 }
 
-/** 删除某天的计划，返回是否真的删掉了一行 */
-export function deletePlan(db: DatabaseSync, date: string): boolean {
-  const info = db.prepare('DELETE FROM diet_plans WHERE date = ?').run(date)
+/** 删除某人某天的计划，返回是否真的删掉了一行 */
+export function deletePlan(db: DatabaseSync, userId: string, date: string): boolean {
+  const info = db.prepare('DELETE FROM diet_plans WHERE user_id = ? AND date = ?').run(userId, date)
   return Number(info.changes) > 0
 }
