@@ -7,6 +7,7 @@
  */
 
 import { computed, reactive } from 'vue'
+import { authHeader, clearToken } from './token'
 
 // 注意：必须用 `let` 再条件赋值。
 // uni 的条件编译是「注释级」的预处理，TypeScript / vue-tsc 看到的仍是两份代码，
@@ -59,6 +60,34 @@ export const netState = reactive({
   error: '',
 })
 
+/** 登录页路径。401 时统一踢过去 */
+const LOGIN_PAGE = '/pages/login/login'
+
+/**
+ * 401 的统一处理：清掉本地登录态并回到登录页。
+ *
+ * 没有这一步的话，token 过期（30 天）或被服务端注销之后，用户会留在一个
+ * 到处报错的页面上，只能手动清缓存 —— 而他根本不知道自己「登录过期了」。
+ *
+ * 用 redirecting 标志防抖：一个页面往往并发好几个请求，会同时收到好几个
+ * 401，不挡住的话会连着 reLaunch 好几次（小程序上会看到页面反复闪）。
+ */
+let redirectingToLogin = false
+
+export function handleUnauthorized(): void {
+  if (redirectingToLogin) return
+  redirectingToLogin = true
+  clearToken()
+  netState.error = ''
+  uni.reLaunch({
+    url: LOGIN_PAGE,
+    complete: () => {
+      // 跳转结束后放开，下一次 401 还能正常触发
+      redirectingToLogin = false
+    },
+  })
+}
+
 /** 是否还有请求在飞 */
 export const isLoading = computed(() => netState.pending > 0)
 
@@ -108,7 +137,8 @@ export function request<T>(options: RequestOptions): Promise<T> {
       url,
       method: options.method ?? 'GET',
       data: options.data as Record<string, unknown> | undefined,
-      header: { 'Content-Type': 'application/json' },
+      // 🔴 authHeader() 不能少：后端除 /api/health 和 /api/auth/login 外全部要登录态
+      header: { 'Content-Type': 'application/json', ...authHeader() },
       timeout: options.timeout ?? 15000,
       success: (res) => {
         const status = res.statusCode ?? 0
@@ -116,6 +146,8 @@ export function request<T>(options: RequestOptions): Promise<T> {
           resolve(res.data as T)
           return
         }
+        // 登录态失效：先踢回登录页，再 reject，让调用方的错误分支照常跑完
+        if (status === 401) handleUnauthorized()
         const { message, issues } = readErrorBody(res.data)
         const text = message || `请求失败（HTTP ${status}）`
         netState.error = text

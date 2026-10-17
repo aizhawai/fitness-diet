@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:migration": "tsx scripts/verify-migration.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

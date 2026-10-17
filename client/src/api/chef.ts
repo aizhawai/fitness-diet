@@ -13,7 +13,8 @@
  * 后续若在 request.ts 里给 ApiError 补上这三个字段，这里可以改回复用。
  */
 
-import { netState } from './request'
+import { handleUnauthorized, netState } from './request'
+import { authHeader } from './token'
 import type {
   DailyPlan,
   FoodBrief,
@@ -223,7 +224,10 @@ export function codeRequest<T>(options: {
       url,
       method: options.method ?? 'GET',
       data: options.data as Record<string, unknown> | undefined,
-      header: { 'Content-Type': 'application/json' },
+      // 🔴 这里也必须带 authHeader()。本函数是故意不复用 request() 的（为了多带
+      // code / llmKind），所以**不会**自动继承 request.ts 的鉴权 —— 漏了这条
+      // 路径上的 cook / replace-dish / feedback 就全是 401。
+      header: { 'Content-Type': 'application/json', ...authHeader() },
       timeout: options.timeout ?? 15000,
       success: (res) => {
         const status = res.statusCode ?? 0
@@ -231,6 +235,8 @@ export function codeRequest<T>(options: {
           resolve(res.data as T)
           return
         }
+        // 与 request() 一致：401 先踢回登录页
+        if (status === 401) handleUnauthorized()
         const body = readBody(res.data)
         const { message, issues } = readErrorMessage(res.data)
         const text = message || `请求失败（HTTP ${status}）`

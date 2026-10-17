@@ -222,6 +222,19 @@
       <text v-if="store.weightRecords.length > 0" class="card__hint">长按某行可删除该日记录（M1 暂未开放删除接口）</text>
     </view>
 
+    <!-- ============ 账号 ============ -->
+    <view class="card">
+      <text class="card__title">账号</text>
+      <view class="account">
+        <text class="account__label">当前昵称</text>
+        <text class="account__name">{{ authName || '未登录' }}</text>
+      </view>
+      <text class="card__hint">
+        档案、体重、食谱都存在这个昵称下面。换个昵称就是另一个人，老数据不会跟过去。
+      </text>
+      <view class="ghost-btn" @click="onLogout">退出登录</view>
+    </view>
+
     <view class="footer-space"></view>
 
     <NavBar />
@@ -233,6 +246,7 @@ import { computed, reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import NavBar from '../../components/NavBar.vue'
 import WeightChart from '../../components/WeightChart.vue'
+import { fetchMe, getSavedNickname, logout } from '../../api/auth'
 import {
   ACTIVITY_OPTIONS,
   DEFICIT_RANGE,
@@ -321,6 +335,26 @@ function fillFormFromServer(): void {
   void store.loadAll().then(() => {
     fillForm(store.profile)
   })
+}
+
+/** 当前登录用户的昵称（展示用；取不到就退回本地存的） */
+const authName = ref(getSavedNickname())
+
+/** 拉一次 /api/auth/me，让「账号」这一栏显示的确实是服务端那个昵称 */
+async function refreshAuthName(): Promise<void> {
+  const me = await fetchMe()
+  if (me !== null) authName.value = me.nickname
+}
+
+/**
+ * 退出登录。
+ *
+ * 退的是**登录态**，不是数据 —— 换个昵称再进来，这个名字底下的档案、体重、
+ * 食谱都还在。所以这里没有任何「确认弹窗」，误触的代价是零。
+ */
+async function onLogout(): Promise<void> {
+  await logout()
+  uni.reLaunch({ url: '/pages/login/login' })
 }
 
 function clearErrors(): void {
@@ -523,6 +557,7 @@ onShow(() => {
   // 之后每次进来都用缓存里的旧值/默认值 —— 用户看到的就不是「上次保存的东西」了。
   // 三个 GET 并发、代价很小，换来的是「进来就是最新的、且确实来自服务端」。
   fillFormFromServer()
+  void refreshAuthName()
 })
 </script>
 
@@ -822,6 +857,46 @@ onShow(() => {
 .footer-space {
   /* 给悬浮导航留出空间 */
   height: 160rpx;
+}
+
+/* ---------- 账号 ---------- */
+
+.account {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8rpx 0 4rpx;
+}
+
+.account__label {
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.account__name {
+  font-size: 30rpx;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.ghost-btn {
+  margin-top: 28rpx;
+  height: 84rpx;
+  border-radius: 100rpx;
+  /* 描边而不是实心：这是「可逆的日常操作」，不该跟「保存」抢视觉重量 */
+  border: 2rpx solid var(--hairline);
+  background-color: transparent;
+  color: var(--ink-2);
+  font-size: 27rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.16s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ghost-btn:active {
+  background-color: rgba(22, 23, 28, 0.04);
+  transform: scale(0.98);
 }
 
 @media (prefers-reduced-motion: reduce) {
